@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Page Access</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .test-section {
+        background: white;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+      }
+      .success {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .error {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .info {
+        background-color: #d1ecf1;
+        color: #0c5460;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>NyayMitra Page Access Test</h1>
+
+    <div class="test-section">
+      <h2>Frontend Access Test</h2>
+      <button onclick="testFrontendAccess()">Test Frontend Access</button>
+      <div id="frontend-result"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>Backend API Test</h2>
+      <button onclick="testBackendAPI()">Test Backend API</button>
+      <div id="backend-result"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>Authentication Test</h2>
+      <button onclick="testAuthentication()">Test Authentication</button>
+      <div id="auth-result"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>Page Navigation Test</h2>
+      <button onclick="testPageNavigation()">Test Page Navigation</button>
+      <div id="navigation-result"></div>
+    </div>
+
+    <script>
+      function testFrontendAccess() {
+        const result = document.getElementById('frontend-result')
+        result.innerHTML = '<div class="info">Testing frontend access...</div>'
+
+        try {
+          // Test if we can access the main page
+          fetch('http://localhost:3000')
+            .then((response) => {
+              if (response.ok) {
+                result.innerHTML =
+                  '<div class="success">✅ Frontend is accessible</div>'
+              } else {
+                result.innerHTML =
+                  '<div class="error">❌ Frontend returned error: ' +
+                  response.status +
+                  '</div>'
+              }
+            })
+            .catch((error) => {
+              result.innerHTML =
+                '<div class="error">❌ Frontend not accessible: ' +
+                error.message +
+                '</div>'
+            })
+        } catch (error) {
+          result.innerHTML =
+            '<div class="error">❌ Frontend test failed: ' +
+            error.message +
+            '</div>'
+        }
+      }
+
+      function testBackendAPI() {
+        const result = document.getElementById('backend-result')
+        result.innerHTML = '<div class="info">Testing backend API...</div>'
+
+        fetch('http://localhost:5000/api/health')
+          .then((response) => response.json())
+          .then((data) => {
+            result.innerHTML =
+              '<div class="success">✅ Backend API is working: ' +
+              JSON.stringify(data) +
+              '</div>'
+          })
+          .catch((error) => {
+            result.innerHTML =
+              '<div class="error">❌ Backend API not accessible: ' +
+              error.message +
+              '</div>'
+          })
+      }
+
+      function testAuthentication() {
+        const result = document.getElementById('auth-result')
+        result.innerHTML = '<div class="info">Testing authentication...</div>'
+
+        // Test if we can access auth endpoints
+        fetch('http://localhost:5000/api/auth/me')
+          .then((response) => {
+            if (response.status === 401) {
+              result.innerHTML =
+                '<div class="success">✅ Authentication endpoint working (401 expected for unauthenticated users)</div>'
+            } else if (response.ok) {
+              result.innerHTML =
+                '<div class="info">ℹ️ User is already authenticated</div>'
+            } else {
+              result.innerHTML =
+                '<div class="error">❌ Authentication endpoint error: ' +
+                response.status +
+                '</div>'
+            }
+          })
+          .catch((error) => {
+            result.innerHTML =
+              '<div class="error">❌ Authentication test failed: ' +
+              error.message +
+              '</div>'
+          })
+      }
+
+      function testPageNavigation() {
+        const result = document.getElementById('navigation-result')
+        result.innerHTML = '<div class="info">Testing page navigation...</div>'
+
+        // Test if we can navigate to different parts of the app
+        const testUrls = [
+          'http://localhost:3000',
+          'http://localhost:3000/faq',
+          'http://localhost:3000/lawyers',
+        ]
+
+        let completed = 0
+        let results = []
+
+        testUrls.forEach((url, index) => {
+          fetch(url)
+            .then((response) => {
+              if (response.ok) {
+                results[index] = '✅ ' + url
+              } else {
+                results[index] =
+                  '❌ ' + url + ' (Status: ' + response.status + ')'
+              }
+            })
+            .catch((error) => {
+              results[index] = '❌ ' + url + ' (Error: ' + error.message + ')'
+            })
+            .finally(() => {
+              completed++
+              if (completed === testUrls.length) {
+                result.innerHTML =
+                  '<div class="info">Page Navigation Results:</div>' +
+                  results.map((r) => '<div>' + r + '</div>').join('')
+              }
+            })
+        })
+      }
+
+      // Auto-run tests on page load
+      window.onload = function () {
+        console.log('Running automatic tests...')
+        testFrontendAccess()
+        testBackendAPI()
+        testAuthentication()
+      }
+    </script>
+  </body>
+</html>
+
+

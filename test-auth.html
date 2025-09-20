@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Auth</title>
+  </head>
+  <body>
+    <h1>Authentication Test</h1>
+    <button onclick="testAuth()">Test Auth Context</button>
+    <div id="result"></div>
+
+    <script>
+      function testAuth() {
+        const result = document.getElementById('result')
+
+        // Test if we can access the auth context
+        try {
+          // This would normally be done through React context
+          result.innerHTML =
+            '<p>Auth context test - check browser console for details</p>'
+          console.log('Testing auth context...')
+
+          // Test API connection
+          fetch('http://localhost:5000/api/health')
+            .then((response) => response.json())
+            .then((data) => {
+              console.log('Backend health check:', data)
+              result.innerHTML += '<p>✅ Backend is running</p>'
+            })
+            .catch((error) => {
+              console.error('Backend connection failed:', error)
+              result.innerHTML +=
+                '<p>❌ Backend connection failed: ' + error.message + '</p>'
+            })
+        } catch (error) {
+          console.error('Auth test failed:', error)
+          result.innerHTML = '<p>❌ Auth test failed: ' + error.message + '</p>'
+        }
+      }
+    </script>
+  </body>
+</html>
+
+
