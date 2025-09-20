@@ -18,22 +18,105 @@ const { connectDB } = require('./config/database')
 
 const app = express()
 
+// IMPORTANT: When behind a proxy (Vercel), set trust proxy BEFORE rate limiter
+app.set('trust proxy', 1) // trust first proxy
+
 // Connect to database
 connectDB()
 
 // Security middleware
 app.use(helmet())
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-  })
-)
 
-// Rate limiting
+// --- CORS setup ------------------------------------------------------------
+// Build allowed origins list from env. Accept either FRONTEND_URLS (comma-separated) or FRONTEND_URL (single)
+function normalizeOrigin(u) {
+  if (!u) return ''
+  return u.trim().replace(/\/+$/, '') // remove trailing slashes
+}
+
+const rawOrigins = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || ''
+const allowedOrigins = rawOrigins
+  .split(',')
+  .map((s) => normalizeOrigin(s))
+  .filter(Boolean)
+
+// Always allow localhost in non-prod for development convenience
+if (
+  !allowedOrigins.includes('http://localhost:3000') &&
+  process.env.NODE_ENV !== 'production'
+) {
+  allowedOrigins.push('http://localhost:3000')
+}
+
+console.info('[CORS] allowed origins:', allowedOrigins)
+
+// CORS delegate that returns exact origin when allowed and enables credentials
+const corsOptionsDelegate = (req, callback) => {
+  const rawOrigin = req.header('origin') || ''
+  const origin = normalizeOrigin(rawOrigin)
+
+  // If no origin header (same-origin or server-to-server), allow request without CORS headers
+  if (!origin) {
+    // callback null with origin true allows no Access-Control-Allow-Origin header (same-origin/server internal)
+    return callback(null, { origin: false })
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    // Allow this origin and enable credentials
+    return callback(null, {
+      origin: origin,
+      credentials: true,
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Accept',
+        'X-Requested-With',
+      ],
+    })
+  }
+
+  // Disallowed origin -> do not set CORS headers
+  return callback(null, { origin: false })
+}
+
+// Use CORS middleware with delegate
+app.use(cors(corsOptionsDelegate))
+
+// Explicitly handle OPTIONS preflight for all routes
+app.options('*', (req, res) => {
+  const rawOrigin = req.header('origin') || ''
+  const origin = normalizeOrigin(rawOrigin)
+
+  if (!origin) {
+    // No origin -> no CORS headers required for server-to-server requests
+    return res.sendStatus(204)
+  }
+
+  if (!allowedOrigins.includes(origin)) {
+    // Origin not allowed: respond 204 without CORS headers (browser will block actual request)
+    return res.sendStatus(204)
+  }
+
+  // Allowed origin: echo it back and provide the rest of preflight headers
+  res.setHeader('Access-Control-Allow-Origin', origin)
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
+  )
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type,Authorization,Accept,X-Requested-With'
+  )
+  return res.sendStatus(204)
+})
+// ---------------------------------------------------------------------------
+
+// Rate limiting (after trust proxy & CORS)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 100,
   message: 'Too many requests from this IP, please try again later.',
 })
 app.use('/api/', limiter)
@@ -68,8 +151,7 @@ app.use('/api/qa', qaRoutes)
 app.use(notFound)
 app.use(errorHandler)
 
-// Add this after creating app
-app.set('trust proxy', 1) // for rate-limit behind proxy
+// Export the app for serverless deployment (Vercel)
 module.exports = app
 
 // Optional: run server locally if not in serverless environment
