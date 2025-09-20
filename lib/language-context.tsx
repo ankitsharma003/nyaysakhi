@@ -2,11 +2,11 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react'
 
-type Language = 'en' | 'hi' | 'ta' | 'te' | 'kn' | 'ml' | 'bn'
+export type AppLanguage = 'en' | 'hi' | 'ta' | 'te' | 'kn' | 'ml' | 'bn'
 
 interface LanguageContextType {
-  language: Language
-  setLanguage: (lang: Language) => void
+  language: AppLanguage
+  setLanguage: (lang: AppLanguage) => void
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(
@@ -14,7 +14,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
 )
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('en')
+  const [language, setLanguage] = useState<AppLanguage>('en')
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage }}>
@@ -25,7 +25,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
 export function useLanguage() {
   const context = useContext(LanguageContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useLanguage must be used within a LanguageProvider')
   }
   return context

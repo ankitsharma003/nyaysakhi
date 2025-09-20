@@ -409,13 +409,37 @@ export default function AppPage() {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
-                  className="px-3 py-1 text-sm font-medium text-gray-700 transition-colors hover:text-indigo-600"
-                  type="button"
-                >
-                  {language === 'en' ? 'हिंदी' : 'English'}
-                </button>
+                <div>
+                  <label
+                    htmlFor="languageSelect"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    {language === 'hi' ? 'भाषा चुनें' : 'Select Language'}
+                  </label>
+                  <select
+                    id="languageSelect"
+                    value={language}
+                    onChange={(e) =>
+                      setLanguage(e.target.value as typeof language)
+                    }
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="en">English</option>
+                    <option value="hi">हिंदी</option>
+                    <option value="ta">தமிழ்</option>
+                    <option value="kn">ಕನ್ನಡ</option>
+                    <option value="ml">മലയാളം</option>
+                    <option value="te">తెలుగు</option>
+                    <option value="bn">বাংলা</option>
+                    <option value="gu">ગુજરાતી</option>
+                    <option value="mr">मराठी</option>
+                    <option value="pa">ਪੰਜਾਬੀ</option>
+                    <option value="or">ଓଡ଼ିଆ</option>
+                    <option value="as">অসমীয়া</option>
+                    <option value="sd">سنڌي</option>
+                    {/* Add more Indian languages if needed */}
+                  </select>
+                </div>
 
                 {isAuthenticated && (
                   <div className="flex items-center space-x-4">
