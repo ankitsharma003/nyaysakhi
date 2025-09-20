@@ -23,6 +23,11 @@ app.set('trust proxy', 1) // trust first proxy
 
 // Connect to database
 connectDB()
+  .then(() => {
+    console.log('Server ready with MongoDB connection')
+    app.listen(5000, () => console.log('Server running on port 5000'))
+  })
+  .catch((err) => console.error(err))
 
 // Security middleware
 app.use(helmet())
