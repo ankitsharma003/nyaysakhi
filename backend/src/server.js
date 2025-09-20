@@ -69,8 +69,7 @@ app.use(notFound)
 app.use(errorHandler)
 
 // Add this after creating app
-app.set('trust proxy', 1)
-// Export the app for serverless deployment
+app.set('trust proxy', 1) // for rate-limit behind proxy
 module.exports = app
 
 // Optional: run server locally if not in serverless environment
