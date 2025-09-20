@@ -17,7 +17,6 @@ const { errorHandler, notFound } = require('./middleware/errorHandler')
 const { connectDB } = require('./config/database')
 
 const app = express()
-const PORT = process.env.PORT || 5000
 
 // Connect to database
 connectDB()
@@ -69,10 +68,14 @@ app.use('/api/qa', qaRoutes)
 app.use(notFound)
 app.use(errorHandler)
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
-  console.log(`📚 API Documentation: http://localhost:${PORT}/api/health`)
-})
-
+// Export the app for serverless deployment
 module.exports = app
+
+// Optional: run server locally if not in serverless environment
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running locally on port ${PORT}`)
+    console.log(`📚 API Documentation: http://localhost:${PORT}/api/health`)
+  })
+}
