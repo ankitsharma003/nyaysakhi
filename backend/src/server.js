@@ -68,6 +68,8 @@ app.use('/api/qa', qaRoutes)
 app.use(notFound)
 app.use(errorHandler)
 
+// Add this after creating app
+app.set('trust proxy', 1)
 // Export the app for serverless deployment
 module.exports = app
 

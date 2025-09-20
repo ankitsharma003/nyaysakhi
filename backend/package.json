@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "test": "jest",
     "lint": "eslint src/",
+    "build": "echo 'No build needed'",
     "lint:fix": "eslint src/ --fix"
   },
   "keywords": [
