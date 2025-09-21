@@ -1,10 +1,10 @@
 import express from 'express'
 import multer from 'multer'
 import path from 'path'
-import { TesseractWorker } from 'tesseract.js'
 import { protect } from '../middleware/auth.js'
 import Document from '../models/Document.js'
 import { extractStructuredData } from '../utils/documentProcessor.js'
+import { processDocumentWithOCR } from '../utils/ocrProcessor.js'
 
 const router = express.Router()
 
@@ -72,22 +72,22 @@ router.post('/upload', protect, upload.single('document'), async (req, res) => {
     let confidence = 0
 
     try {
-      const worker = new TesseractWorker()
-      await worker.loadLanguage(language === 'hi' ? 'hin' : 'eng')
-      await worker.initialize(language === 'hi' ? 'hin' : 'eng')
-
-      const {
-        data: { text, confidence: ocrConfidence },
-      } = await worker.recognize(filePath)
-
-      // Extract structured data
-      extractedData = extractStructuredData(text)
-      confidence = ocrConfidence
-
-      await worker.terminate()
+      const ocrResult = await processDocumentWithOCR(filePath, language)
+      
+      if (ocrResult.success) {
+        // Extract structured data from OCR text
+        extractedData = extractStructuredData(ocrResult.text)
+        confidence = ocrResult.confidence
+      } else {
+        console.warn('OCR processing failed:', ocrResult.error)
+        extractedData = extractStructuredData('')
+        confidence = 0
+      }
     } catch (ocrError) {
       console.error('OCR Error:', ocrError)
       // Continue with empty extracted data if OCR fails
+      extractedData = extractStructuredData('')
+      confidence = 0
     }
 
     // Save document to database
