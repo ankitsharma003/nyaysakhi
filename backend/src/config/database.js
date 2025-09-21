@@ -3,173 +3,121 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 const mongoose = require('mongoose')
+require('dotenv').config()
 
-/**
- * Robust mongoose connection helper suited for serverless / Next.js deployments.
- * - Does NOT call process.exit (serverless functions mustn't exit process)
- * - Retries with exponential backoff (configurable)
- * - Prevents multiple concurrent connections in development by caching
- */
-
-const DEFAULT_MAX_RETRIES = 5
-const DEFAULT_RETRY_DELAY_MS = 2000
-const DEFAULT_SERVER_SELECTION_TIMEOUT_MS = 5000
-
-// Use env var name you set in Vercel. Keep fallback for local dev.
 const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  process.env.MONGODB_ATLAS_URI ||
-  'mongodb://localhost:27017/nyaymitra'
+  process.env.MONGODB_URI || 'mongodb://localhost:27017/nyaymitra'
 
-let retries = 0
+// Internal state
 let connected = false
-let connectingPromise = null
+let connecting = false
 
-// In Next.js / serverless we want to reuse a connection between hot reloads.
-// Use a global to cache connection in dev.
-if (!global._mongoose) {
-  global._mongoose = { conn: null, promise: null }
-}
+// Basic retry config
+const MAX_RETRIES = parseInt(process.env.MONGODB_CONNECT_RETRIES || '5', 10)
+const RETRY_DELAY_MS = parseInt(
+  process.env.MONGODB_RETRY_DELAY_MS || '5000',
+  10
+)
 
-/**
- * Connect to MongoDB with retries.
- * Returns a promise that resolves when connected (or rejects after retries exhausted).
- * Does not call process.exit on failure (so serverless env doesn't crash).
- */
-async function connectDB(options = {}) {
-  if (connected) {
-    return mongoose
-  }
+async function _connectWithRetry(retriesLeft = MAX_RETRIES) {
+  if (connecting) return
+  connecting = true
 
-  // If a connection is in progress, return the existing promise
-  if (global._mongoose.promise) {
-    await global._mongoose.promise
-    return mongoose
-  }
+  try {
+    // Use modern mongoose defaults; options are optional in recent mongoose versions
+    await mongoose.connect(MONGODB_URI, {
+      // useNewUrlParser: true,
+      // useUnifiedTopology: true,
+      // useCreateIndex: true,
+      // useFindAndModify: false,
+    })
 
-  // Connection options (explicit and future-proof)
-  const connectOptions = {
-    // useNewUrlParser/useUnifiedTopology are defaults in recent mongoose but set explicitly
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS:
-      options.serverSelectionTimeoutMS || DEFAULT_SERVER_SELECTION_TIMEOUT_MS,
-    // other options can be added as necessary
-  }
+    connected = true
+    connecting = false
+    console.log('✅ MongoDB connected to', mongoose.connection.host)
+  } catch (err) {
+    connecting = false
+    connected = false
+    console.error(`MongoDB connection attempt failed: ${err.message}`)
 
-  // Wrap connect attempt
-  const attemptConnect = async () => {
-    try {
+    if (retriesLeft > 0) {
       console.log(
-        '🔗 Attempting MongoDB connection to:',
-        sanitizeUri(MONGODB_URI)
+        `⏳ Retrying MongoDB connection in ${RETRY_DELAY_MS}ms... (${retriesLeft} retries left)`
       )
-      const conn = await mongoose.connect(MONGODB_URI, connectOptions)
-      connected = true
-      retries = 0
-      global._mongoose.conn = conn
-      console.log(`✅ MongoDB connected to ${conn.connection.host}`)
-      setupListeners()
-      return conn
-    } catch (err) {
-      retries += 1
-      console.error(
-        `❌ MongoDB connection attempt ${retries} failed:`,
-        (err && err.message) || err
-      )
-      if (retries >= (options.maxRetries || DEFAULT_MAX_RETRIES)) {
-        console.error(
-          `⚠️ Reached max MongoDB connection retries (${options.maxRetries || DEFAULT_MAX_RETRIES}). Giving up for now.`
-        )
-        // do not exit the process in serverless; rethrow so caller can handle
-        throw err
-      }
-      const delay = computeBackoffDelay(
-        retries,
-        options.baseDelayMs || DEFAULT_RETRY_DELAY_MS
-      )
-      console.log(`⏳ Retrying MongoDB connection in ${delay}ms...`)
-      await sleep(delay)
-      return attemptConnect()
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS))
+      return _connectWithRetry(retriesLeft - 1)
+    } else {
+      console.error('❌ MongoDB connection failed after retries.')
+      // Do not exit here in serverless environment; keep the flag false and return
+      // process.exit(1) // uncomment only if you want process to exit
     }
   }
+}
 
-  // Save promise to prevent duplicate attempts
-  connectingPromise = attemptConnect()
-  global._mongoose.promise = connectingPromise
-
-  try {
-    await connectingPromise
-    return mongoose
-  } finally {
-    // clear the connecting promise once resolved/rejected so new attempts can be made later
-    global._mongoose.promise = null
+// Public function to initiate connection (call once at app start)
+async function connectDB() {
+  if (connected) {
+    return
   }
-}
-
-function sanitizeUri(uri) {
-  try {
-    // hide credentials for logging
-    return uri.replace(/\/\/.*:.*@/, '//***:***@')
-  } catch {
-    return uri
-  }
-}
-
-function computeBackoffDelay(attempt, base = DEFAULT_RETRY_DELAY_MS) {
-  // exponential backoff with jitter: base * 2^(attempt-1) + random(0, base)
-  const jitter = Math.floor(Math.random() * base)
-  return base * Math.pow(2, Math.max(0, attempt - 1)) + jitter
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function setupListeners() {
-  // Only set listeners once
-  if (global._mongoose.listenersSetup) return
-  global._mongoose.listenersSetup = true
-
-  mongoose.connection.on('error', (err) => {
-    console.error('❌ MongoDB connection error:', err)
-    connected = false
+  await _connectWithRetry()
+  // Set up listeners
+  mongoose.connection.on('connected', () => {
+    connected = true
+    console.log('MongoDB connection event: connected')
   })
 
   mongoose.connection.on('disconnected', () => {
-    console.warn('⚠️ MongoDB disconnected')
     connected = false
+    console.warn('MongoDB connection event: disconnected')
   })
 
-  // graceful close in local dev when pressing ctrl+c
-  if (typeof process !== 'undefined' && process && process.on) {
-    process.on('SIGINT', async () => {
+  mongoose.connection.on('error', (err) => {
+    connected = false
+    console.error('MongoDB connection event: error', err)
+  })
+
+  // Graceful shutdown
+  if (typeof process !== 'undefined') {
+    const shutdown = async () => {
       try {
-        if (mongoose.connection && mongoose.connection.readyState === 1) {
+        if (mongoose.connection.readyState === 1) {
           await mongoose.connection.close(false)
-          console.log(
-            '🔌 MongoDB connection closed through app termination (SIGINT)'
-          )
+          console.log('🔌 MongoDB connection closed.')
         }
       } catch (e) {
-        console.error('Error closing MongoDB connection on SIGINT:', e)
+        console.error('Error closing MongoDB connection:', e)
       } finally {
-        // only exit in non-serverless environments
-        if (process.env.NODE_ENV !== 'production') process.exit(0)
+        // Only exit in non-serverless local environments if desired
+        if (
+          process.env.NODE_ENV !== 'production' &&
+          process.env.FORCE_EXIT_ON_DB_CLOSE === 'true'
+        ) {
+          process.exit(0)
+        }
       }
-    })
+    }
+
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
   }
 }
 
-// Helper so other modules can check DB state
-function isConnected() {
-  return (
-    connected || (mongoose.connection && mongoose.connection.readyState === 1)
-  )
+// Exported accessor used by middleware
+function isDBConnected() {
+  // mongoose.connection.readyState values:
+  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+  try {
+    return (
+      mongoose && mongoose.connection && mongoose.connection.readyState === 1
+    )
+  } catch (e) {
+    return false
+  }
 }
 
+// Helpful: exposes the underlying mongoose for models/tests
 module.exports = {
   connectDB,
-  isConnected,
+  isDBConnected,
   mongoose,
 }
