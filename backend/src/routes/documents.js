@@ -3,7 +3,7 @@ import multer from 'multer'
 import path from 'path'
 import { TesseractWorker } from 'tesseract.js'
 import { protect } from '../middleware/auth.js'
-import { pool } from '../config/database.js'
+import Document from '../models/Document.js'
 import { extractStructuredData } from '../utils/documentProcessor.js'
 
 const router = express.Router()
@@ -91,27 +91,25 @@ router.post('/upload', protect, upload.single('document'), async (req, res) => {
     }
 
     // Save document to database
-    const result = await pool.query(
-      `INSERT INTO documents (user_id, file_name, file_size, file_type, file_path, extracted_data, confidence, language, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
-      [
-        req.user.id,
-        fileName,
-        fileSize,
-        fileType,
-        filePath,
-        JSON.stringify(extractedData),
-        confidence,
-        language,
-        'completed',
-      ]
-    )
+    const document = new Document({
+      user: req.user._id,
+      fileName: req.file.filename,
+      originalName: fileName,
+      fileSize,
+      fileType: fileType.split('/')[1], // Extract file extension
+      filePath,
+      extractedData,
+      confidence,
+      language,
+      status: 'completed',
+    })
+
+    await document.save()
 
     res.status(201).json({
       success: true,
       data: {
-        document: result.rows[0],
+        document,
         extractedData,
       },
     })
@@ -128,29 +126,41 @@ router.post('/upload', protect, upload.single('document'), async (req, res) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status } = req.query
-    const offset = (page - 1) * limit
+    const { page = 1, limit = 10, status, category, language } = req.query
+    const skip = (page - 1) * limit
 
-    let query = 'SELECT * FROM documents WHERE user_id = $1'
-    const params = [req.user.id]
-
+    const query = { user: req.user._id }
+    
     if (status) {
-      query += ' AND status = $2'
-      params.push(status)
+      query.status = status
+    }
+    
+    if (category) {
+      query.category = category
+    }
+    
+    if (language) {
+      query.language = language
     }
 
-    query +=
-      ' ORDER BY created_at DESC LIMIT $' +
-      (params.length + 1) +
-      ' OFFSET $' +
-      (params.length + 2)
-    params.push(limit, offset)
+    const documents = await Document.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
 
-    const result = await pool.query(query, params)
+    const total = await Document.countDocuments(query)
 
     res.json({
       success: true,
-      data: result.rows,
+      data: {
+        documents,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalItems: total,
+          itemsPerPage: parseInt(limit),
+        },
+      },
     })
   } catch (error) {
     console.error('Get documents error:', error)
@@ -165,12 +175,12 @@ router.get('/', protect, async (req, res) => {
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    )
+    const document = await Document.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    })
 
-    if (result.rows.length === 0) {
+    if (!document) {
       return res
         .status(404)
         .json({ success: false, message: 'Document not found' })
@@ -178,7 +188,7 @@ router.get('/:id', protect, async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows[0],
+      data: document,
     })
   } catch (error) {
     console.error('Get document error:', error)
@@ -191,22 +201,36 @@ router.get('/:id', protect, async (req, res) => {
 // @access  Private
 router.put('/:id', protect, async (req, res) => {
   try {
-    const { extractedData } = req.body
+    const { extractedData, tags, category } = req.body
 
-    const result = await pool.query(
-      'UPDATE documents SET extracted_data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3 RETURNING *',
-      [JSON.stringify(extractedData), req.params.id, req.user.id]
-    )
+    const document = await Document.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    })
 
-    if (result.rows.length === 0) {
+    if (!document) {
       return res
         .status(404)
         .json({ success: false, message: 'Document not found' })
     }
 
+    if (extractedData) {
+      document.extractedData = { ...document.extractedData, ...extractedData }
+    }
+    
+    if (tags) {
+      document.tags = tags
+    }
+    
+    if (category) {
+      document.category = category
+    }
+
+    await document.save()
+
     res.json({
       success: true,
-      data: result.rows[0],
+      data: document,
     })
   } catch (error) {
     console.error('Update document error:', error)
@@ -219,12 +243,12 @@ router.put('/:id', protect, async (req, res) => {
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const result = await pool.query(
-      'DELETE FROM documents WHERE id = $1 AND user_id = $2 RETURNING *',
-      [req.params.id, req.user.id]
-    )
+    const document = await Document.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user._id,
+    })
 
-    if (result.rows.length === 0) {
+    if (!document) {
       return res
         .status(404)
         .json({ success: false, message: 'Document not found' })

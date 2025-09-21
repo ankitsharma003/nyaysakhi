@@ -1,5 +1,5 @@
 import express from 'express'
-import { pool } from '../config/database.js'
+import FAQ from '../models/FAQ.js'
 
 const router = express.Router()
 
@@ -16,58 +16,44 @@ router.get('/faqs', async (req, res) => {
       search,
     } = req.query
 
-    const offset = (page - 1) * limit
-    let query = `
-      SELECT id, question, answer, category, language, tags, created_at
-      FROM faqs 
-      WHERE language = $1
-    `
-    const params = [language]
-    let paramCount = 1
+    const skip = (page - 1) * limit
+    const query = { language, isActive: true }
 
     // Add filters
     if (category) {
-      paramCount++
-      query += ` AND category = $${paramCount}`
-      params.push(category)
+      query.category = category
     }
+
+    let faqs
+    let total
 
     if (search) {
-      paramCount++
-      query += ` AND (question ILIKE $${paramCount} OR answer ILIKE $${paramCount})`
-      params.push(`%${search}%`)
+      // Text search
+      faqs = await FAQ.find({
+        ...query,
+        $text: { $search: search },
+      })
+        .sort({ score: { $meta: 'textScore' }, order: 1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+
+      total = await FAQ.countDocuments({
+        ...query,
+        $text: { $search: search },
+      })
+    } else {
+      faqs = await FAQ.find(query)
+        .sort({ order: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+
+      total = await FAQ.countDocuments(query)
     }
-
-    // Add ordering and pagination
-    query += ` ORDER BY created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`
-    params.push(limit, offset)
-
-    const result = await pool.query(query, params)
-
-    // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) FROM faqs WHERE language = $1'
-    const countParams = [language]
-    let countParamCount = 1
-
-    if (category) {
-      countParamCount++
-      countQuery += ` AND category = $${countParamCount}`
-      countParams.push(category)
-    }
-
-    if (search) {
-      countParamCount++
-      countQuery += ` AND (question ILIKE $${countParamCount} OR answer ILIKE $${countParamCount})`
-      countParams.push(`%${search}%`)
-    }
-
-    const countResult = await pool.query(countQuery, countParams)
-    const total = parseInt(countResult.rows[0].count)
 
     res.json({
       success: true,
       data: {
-        faqs: result.rows,
+        faqs,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(total / limit),
@@ -96,22 +82,17 @@ router.get('/search', async (req, res) => {
       })
     }
 
-    const result = await pool.query(
-      `SELECT id, question, answer, category, language, tags,
-              ts_rank(to_tsvector('english', question || ' ' || answer), plainto_tsquery('english', $1)) as rank
-       FROM faqs 
-       WHERE language = $2 
-         AND (to_tsvector('english', question || ' ' || answer) @@ plainto_tsquery('english', $1)
-              OR question ILIKE $3 
-              OR answer ILIKE $3)
-       ORDER BY rank DESC, created_at DESC
-       LIMIT $4`,
-      [q, language, `%${q}%`, parseInt(limit)]
-    )
+    const faqs = await FAQ.find({
+      $text: { $search: q },
+      language,
+      isActive: true,
+    })
+      .sort({ score: { $meta: 'textScore' } })
+      .limit(parseInt(limit))
 
     res.json({
       success: true,
-      data: result.rows,
+      data: faqs,
     })
   } catch (error) {
     console.error('Search FAQs error:', error)
@@ -126,18 +107,15 @@ router.get('/categories', async (req, res) => {
   try {
     const { language = 'en' } = req.query
 
-    const result = await pool.query(
-      `SELECT category, COUNT(*) as count
-       FROM faqs 
-       WHERE language = $1
-       GROUP BY category
-       ORDER BY count DESC`,
-      [language]
-    )
+    const categories = await FAQ.aggregate([
+      { $match: { language, isActive: true } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ])
 
     res.json({
       success: true,
-      data: result.rows,
+      data: categories,
     })
   } catch (error) {
     console.error('Get categories error:', error)
@@ -152,17 +130,15 @@ router.get('/categories', async (req, res) => {
 // @access  Public
 router.get('/faqs/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM faqs WHERE id = $1', [
-      req.params.id,
-    ])
+    const faq = await FAQ.findById(req.params.id)
 
-    if (result.rows.length === 0) {
+    if (!faq) {
       return res.status(404).json({ success: false, message: 'FAQ not found' })
     }
 
     res.json({
       success: true,
-      data: result.rows[0],
+      data: faq,
     })
   } catch (error) {
     console.error('Get FAQ error:', error)

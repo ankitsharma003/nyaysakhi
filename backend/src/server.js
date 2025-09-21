@@ -13,6 +13,16 @@ import { dbRequired } from './middleware/dbRequired.js'
 // Initialize dotenv
 dotenv.config()
 
+// Validate required environment variables
+const requiredEnvVars = ['JWT_SECRET', 'JWT_REFRESH_SECRET']
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar])
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingEnvVars.join(', '))
+  console.error('Please check your .env file or environment configuration')
+  process.exit(1)
+}
+
 // Import routes directly
 import authRoutes from './routes/auth.js'
 import documentRoutes from './routes/documents.js'

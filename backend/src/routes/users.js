@@ -252,7 +252,7 @@ router.delete(
       await user.save()
 
       // Revoke all sessions
-      const Session = require('../models/Session')
+      const Session = (await import('../models/Session.js')).default
       await Session.revokeAllForUser(user._id)
 
       res.json({

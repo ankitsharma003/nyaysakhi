@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken'
 import Session from '../models/Session.js'
 
 // Protect routes
@@ -21,9 +22,9 @@ const protect = async (req, res, next) => {
     }
 
     try {
-      // Verify token
-      // const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
+      // Verify JWT token first
+      const decoded = jwt.verify(token, process.env.JWT_SECRET)
+      
       // Check if session exists and is active
       const session = await Session.findOne({
         token,
@@ -38,6 +39,14 @@ const protect = async (req, res, next) => {
         return res.status(401).json({
           success: false,
           message: 'Invalid or expired session',
+        })
+      }
+
+      // Verify the session user matches the JWT user
+      if (session.user._id.toString() !== decoded.userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Session user mismatch',
         })
       }
 
@@ -58,6 +67,18 @@ const protect = async (req, res, next) => {
       next()
     } catch (error) {
       console.error('Token verification error:', error)
+      if (error.name === 'JsonWebTokenError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid token',
+        })
+      }
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token expired',
+        })
+      }
       return res.status(401).json({
         success: false,
         message: 'Token is not valid',
@@ -126,7 +147,9 @@ const optionalAuth = async (req, res, next) => {
 
     if (token) {
       try {
-        // const decoded = jwt.verify(token, process.env.JWT_SECRET)
+        // Verify JWT token first
+        const decoded = jwt.verify(token, process.env.JWT_SECRET)
+        
         const session = await Session.findOne({
           token,
           isActive: true,
@@ -137,10 +160,13 @@ const optionalAuth = async (req, res, next) => {
         )
 
         if (session && session.user && session.user.isActive) {
-          session.lastActivity = new Date()
-          await session.save()
-          req.user = session.user
-          req.session = session
+          // Verify the session user matches the JWT user
+          if (session.user._id.toString() === decoded.userId) {
+            session.lastActivity = new Date()
+            await session.save()
+            req.user = session.user
+            req.session = session
+          }
         }
       } catch (error) {
         // Token is invalid, but we don't fail the request
@@ -155,7 +181,7 @@ const optionalAuth = async (req, res, next) => {
   }
 }
 
-module.exports = {
+export {
   protect,
   authorize,
   requireVerification,

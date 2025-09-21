@@ -1,8 +1,7 @@
 // src/middleware/dbRequired.js
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { isDBConnected } = require('../config/database')
+import { isDBConnected } from '../config/database.js'
 
-module.exports = (req, res, next) => {
+export default (req, res, next) => {
   if (!isDBConnected()) {
     return res.status(503).json({
       success: false,

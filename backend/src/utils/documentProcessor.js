@@ -1,212 +1,135 @@
-// Document processing utilities for extracting legal information
+// Document processing utilities for OCR and data extraction
 
-const extractCaseNumber = (text) => {
-  const patterns = [
-    /Case\s*No\.?\s*[A-Z0-9/-]+/gi,
-    /Crl\.?\s*No\.?\s*[A-Z0-9/-]+/gi,
-    /C\.?\s*No\.?\s*[A-Z0-9/-]+/gi,
-    /W\.?\s*P\.?\s*No\.?\s*[A-Z0-9/-]+/gi,
-    /S\.?\s*A\.?\s*No\.?\s*[A-Z0-9/-]+/gi,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      return match[0].trim()
+export function extractStructuredData(text) {
+  if (!text || typeof text !== 'string') {
+    return {
+      caseType: null,
+      caseNumber: null,
+      courtName: null,
+      judgeName: null,
+      parties: [],
+      caseDetails: text || '',
+      importantDates: [],
+      legalIssues: [],
+      documents: [],
+      summary: text || '',
+      confidence: 0,
     }
   }
 
-  return null
-}
-
-const extractJudgeName = (text) => {
-  const patterns = [
-    /BEFORE\s+HON'BLE\s+([A-Z\s.]+)/gi,
-    /HON'BLE\s+([A-Z\s.]+)/gi,
-    /JUDGE\s*:?\s*([A-Z\s.]+)/gi,
-  ]
-
-  for (const pattern of patterns) {
-    const match = pattern.exec(text)
-    if (match && match[1] && match[1].trim().length > 2) {
-      const name = match[1].trim()
-      if (name.split(' ').length >= 2 && /^[A-Z\s.]+$/.test(name)) {
-        return name
-      }
-    }
-    pattern.lastIndex = 0
+  // Basic patterns for Indian legal documents
+  const patterns = {
+    caseNumber: /(?:case|matter|petition|appeal|writ)\s*(?:no\.?|number)\s*:?\s*([A-Z0-9/\-]+)/gi,
+    courtName: /(?:in\s+the\s+)?(?:court\s+of|high\s+court|supreme\s+court|district\s+court|sessions\s+court)\s+of\s+([^,\n]+)/gi,
+    judgeName: /(?:before|hon'ble|honourable)\s+(?:mr\.?|ms\.?|justice|judge)\s+([^,\n]+)/gi,
+    caseType: /(?:criminal|civil|family|writ|appeal|revision|bail|anticipatory\s+bail)/gi,
+    date: /(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{2,4})/gi,
   }
 
-  return null
-}
-
-const extractDate = (text) => {
-  const patterns = [
-    { regex: /(\d{1,2})[-/](\d{1,2})[-/](\d{4})/g, isDDMMYYYY: true },
-    {
-      regex:
-        /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/gi,
-      isDDMMYYYY: false,
-    },
-    {
-      regex:
-        /(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/gi,
-      isDDMMYYYY: false,
-    },
-  ]
-
-  for (const pattern of patterns) {
-    const match = pattern.regex.exec(text)
-    if (match) {
-      try {
-        let date
-        if (pattern.isDDMMYYYY) {
-          const [, day, month, year] = match
-          date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-        } else {
-          date = new Date(match[0])
-        }
-
-        if (!isNaN(date.getTime())) {
-          return date.toISOString()
-        }
-      } catch (error) {
-        continue
-      }
-    }
-    pattern.regex.lastIndex = 0
+  const extracted = {
+    caseType: null,
+    caseNumber: null,
+    courtName: null,
+    judgeName: null,
+    parties: [],
+    caseDetails: text,
+    importantDates: [],
+    legalIssues: [],
+    documents: [],
+    summary: text.substring(0, 500) + (text.length > 500 ? '...' : ''),
+    confidence: 0,
   }
 
-  return null
-}
-
-const extractCaseTitle = (text) => {
-  const patterns = [
-    /(?:IN THE MATTER OF|BETWEEN|IN RE)\s+([A-Z\s.,&]+)/i,
-    /PETITIONER[:\s]+([A-Z\s.,&]+)/i,
-    /APPLICANT[:\s]+([A-Z\s.,&]+)/i,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match && match[1]) {
-      return match[1].trim()
-    }
+  // Extract case number
+  const caseNumberMatch = text.match(patterns.caseNumber)
+  if (caseNumberMatch) {
+    extracted.caseNumber = caseNumberMatch[0].replace(/(?:case|matter|petition|appeal|writ)\s*(?:no\.?|number)\s*:?\s*/gi, '').trim()
   }
 
-  return null
-}
-
-const extractCourtName = (text) => {
-  const patterns = [
-    /(?:HIGH COURT|DISTRICT COURT|SUPREME COURT|SESSIONS COURT|FAMILY COURT|CONSUMER COURT)[\s\w]*/gi,
-    /COURT[:\s]+([A-Z\s.,&]+)/i,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      return match[0].trim()
-    }
+  // Extract court name
+  const courtMatch = text.match(patterns.courtName)
+  if (courtMatch) {
+    extracted.courtName = courtMatch[0].replace(/(?:in\s+the\s+)?(?:court\s+of|high\s+court|supreme\s+court|district\s+court|sessions\s+court)\s+of\s+/gi, '').trim()
   }
 
-  return null
-}
-
-const extractCaseType = (text) => {
-  const patterns = [
-    /(?:CRIMINAL|CIVIL|WRIT|BAIL|APPEAL|REVISION|REVIEW)[\s\w]*/gi,
-    /TYPE[:\s]+([A-Z\s.,&]+)/i,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      return match[0].trim()
-    }
+  // Extract judge name
+  const judgeMatch = text.match(patterns.judgeName)
+  if (judgeMatch) {
+    extracted.judgeName = judgeMatch[0].replace(/(?:before|hon'ble|honourable)\s+(?:mr\.?|ms\.?|justice|judge)\s+/gi, '').trim()
   }
 
-  return null
-}
-
-const extractCaseStatus = (text) => {
-  const patterns = [
-    /(?:PENDING|DISPOSED|ADJOURNED|DISMISSED|ALLOWED|REJECTED)[\s\w]*/gi,
-    /STATUS[:\s]+([A-Z\s.,&]+)/i,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      return match[0].trim()
-    }
+  // Extract case type
+  const caseTypeMatch = text.match(patterns.caseType)
+  if (caseTypeMatch) {
+    extracted.caseType = caseTypeMatch[0].trim()
   }
 
-  return null
-}
-
-const extractParties = (text) => {
-  const patterns = [
-    /(?:PETITIONER|APPLICANT|COMPLAINANT)[\s\w]*\s+(?:VS|V\.S\.|AGAINST)\s+(?:RESPONDENT|OPPOSITE PARTY|ACCUSED)[\s\w]*/gi,
-    /BETWEEN\s+([A-Z\s.,&]+)\s+AND\s+([A-Z\s.,&]+)/gi,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      if (match[1] && match[2]) {
-        return [match[1].trim(), match[2].trim()]
-      } else {
-        return match[0].split(/\s+(?:VS|V\.S\.|AGAINST)\s+/i)
-      }
-    }
+  // Extract dates
+  const dateMatches = text.match(patterns.date)
+  if (dateMatches) {
+    extracted.importantDates = dateMatches.map(date => ({
+      date: new Date(date),
+      description: 'Document date',
+      type: 'other'
+    }))
   }
 
-  return null
-}
+  // Extract parties (basic pattern)
+  const partyPattern = /(?:petitioner|respondent|appellant|defendant|plaintiff|accused)\s*:?\s*([^,\n]+)/gi
+  const partyMatches = text.match(partyPattern)
+  if (partyMatches) {
+    extracted.parties = partyMatches.map(party => {
+      const type = party.match(/(petitioner|respondent|appellant|defendant|plaintiff|accused)/i)?.[0]?.toLowerCase() || 'other'
+      const name = party.replace(/(?:petitioner|respondent|appellant|defendant|plaintiff|accused)\s*:?\s*/gi, '').trim()
+      return { name, type }
+    })
+  }
 
-const calculateConfidence = (extractedData, ocrConfidence) => {
-  const fields = [
-    'caseNumber',
-    'caseTitle',
-    'judgeName',
-    'nextHearingDate',
-    'caseStatus',
-    'courtName',
-    'caseType',
-  ]
+  // Calculate confidence based on extracted data
+  let confidence = 0
+  if (extracted.caseNumber) confidence += 20
+  if (extracted.courtName) confidence += 20
+  if (extracted.judgeName) confidence += 15
+  if (extracted.caseType) confidence += 15
+  if (extracted.parties.length > 0) confidence += 20
+  if (extracted.importantDates.length > 0) confidence += 10
 
-  const extractedFields = fields.filter((field) => extractedData[field])
-  const extractionRate = extractedFields.length / fields.length
-
-  return (ocrConfidence + extractionRate) / 2
-}
-
-const extractStructuredData = (text) => {
-  const extracted = {}
-
-  // Extract various fields
-  extracted.caseNumber = extractCaseNumber(text)
-  extracted.caseTitle = extractCaseTitle(text)
-  extracted.judgeName = extractJudgeName(text)
-  extracted.nextHearingDate = extractDate(text)
-  extracted.caseStatus = extractCaseStatus(text)
-  extracted.courtName = extractCourtName(text)
-  extracted.caseType = extractCaseType(text)
-  extracted.parties = extractParties(text)
+  extracted.confidence = Math.min(confidence, 100)
 
   return extracted
 }
 
-module.exports = {
-  extractStructuredData,
-  extractCaseNumber,
-  extractJudgeName,
-  extractDate,
-  extractCaseTitle,
-  extractCourtName,
-  extractCaseType,
-  extractCaseStatus,
-  extractParties,
-  calculateConfidence,
+export function categorizeDocument(extractedData) {
+  if (!extractedData || !extractedData.caseType) {
+    return 'other'
+  }
+
+  const caseType = extractedData.caseType.toLowerCase()
+  
+  if (caseType.includes('criminal')) return 'criminal'
+  if (caseType.includes('civil')) return 'civil'
+  if (caseType.includes('family')) return 'family'
+  if (caseType.includes('writ')) return 'constitutional'
+  if (caseType.includes('bail')) return 'criminal'
+  
+  return 'other'
+}
+
+export function generateSummary(text, maxLength = 200) {
+  if (!text || typeof text !== 'string') {
+    return ''
+  }
+
+  // Simple summarization - take first few sentences
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10)
+  let summary = ''
+  
+  for (const sentence of sentences) {
+    if (summary.length + sentence.length > maxLength) {
+      break
+    }
+    summary += sentence.trim() + '. '
+  }
+
+  return summary.trim() || text.substring(0, maxLength) + '...'
 }
