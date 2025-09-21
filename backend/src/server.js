@@ -8,7 +8,7 @@ import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
 import { errorHandler, notFound } from './middleware/errorHandler.js'
 import { connectDB, isDBConnected, mongoose } from './config/database.js'
-import { dbRequired } from './middleware/dbRequired.js'
+import dbRequired from './middleware/dbRequired.js'
 
 // Initialize dotenv
 dotenv.config()

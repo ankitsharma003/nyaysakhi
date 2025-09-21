@@ -8,6 +8,7 @@
     "dev": "nodemon start.js",
     "start": "node start.js",
     "test": "jest",
+    "test:imports": "node test-imports.js",
     "test:ocr": "node test-ocr.js",
     "lint": "eslint src/",
     "build": "echo 'Build step completed'",
