@@ -1,66 +1,67 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
+/* config/database.js */
+
 const mongoose = require('mongoose')
+require('dotenv').config()
 
 const MONGODB_URI =
   process.env.MONGODB_URI || 'mongodb://localhost:27017/nyaymitra'
 
-if (!MONGODB_URI) {
-  throw new Error(
-    '❌ Please define the MONGODB_URI environment variable inside .env.local'
-  )
-}
-
-/**
- * In serverless environments (like Vercel), Next.js API routes
- * can be called multiple times rapidly. We cache the connection
- * to avoid exhausting connections.
- */
-let cached = global.mongoose
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null }
-}
+let isConnected = false
 
 async function connectDB() {
-  if (cached.conn) {
-    return cached.conn
-  }
+  try {
+    // Connect and update the flag
+    const conn = await mongoose.connect(MONGODB_URI)
+    isConnected = true
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`)
 
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-      // Additional options can go here
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+    mongoose.connection.on('error', (err) => {
+      console.error('❌ MongoDB connection error:', err)
+      isConnected = false
+    })
+
+    mongoose.connection.on('disconnected', () => {
+      console.warn('⚠️ MongoDB disconnected')
+      isConnected = false
+    })
+
+    // Graceful shutdown in non-serverless local environments
+    if (process.env.NODE_ENV !== 'production') {
+      process.on('SIGINT', async () => {
+        try {
+          await mongoose.connection.close()
+          console.log('🔌 MongoDB connection closed through app termination')
+        } catch (e) {
+          console.error('Error closing MongoDB connection on SIGINT', e)
+        } finally {
+          process.exit(0)
+        }
+      })
     }
-
-    cached.promise = mongoose
-      .connect(MONGODB_URI, opts)
-      .then((mongoose) => {
-        console.log(`✅ MongoDB connected: ${mongoose.connection.host}`)
-
-        mongoose.connection.on('error', (err) => {
-          console.error('❌ MongoDB connection error:', err)
-        })
-
-        mongoose.connection.on('disconnected', () => {
-          console.log('⚠️ MongoDB disconnected')
-        })
-
-        return mongoose
-      })
-      .catch((err) => {
-        console.error('❌ Database connection error:', err.message)
-        throw err
-      })
+  } catch (err) {
+    isConnected = false
+    console.error(
+      '❌ Database connection error:',
+      err && err.message ? err.message : err
+    )
+    console.error(
+      '💡 Make sure MongoDB is running and the connection string is correct'
+    )
+    console.error('💡 For local MongoDB: mongodb://localhost:27017/nyaymitra')
+    console.error(
+      '💡 For MongoDB Atlas: Check your connection string and network access (IP whitelist)'
+    )
+    // Do not exit here when running on serverless platforms (Vercel); let app start and respond 503 where needed
   }
+}
 
-  cached.conn = await cached.promise
-  return cached.conn
+function getDbStatus() {
+  return isConnected
 }
 
 module.exports = {
   connectDB,
+  getDbStatus,
   mongoose,
 }

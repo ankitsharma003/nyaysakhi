@@ -1,3 +1,4 @@
+/* src/server.js */
 /* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable @typescript-eslint/no-require-imports */
 const express = require('express')
@@ -14,62 +15,48 @@ const userRoutes = require('./routes/users')
 const lawyerRoutes = require('./routes/lawyers')
 const qaRoutes = require('./routes/qa')
 const { errorHandler, notFound } = require('./middleware/errorHandler')
-const { connectDB } = require('./config/database')
+const { connectDB, getDbStatus } = require('./config/database')
 
 const app = express()
 
-// IMPORTANT: When behind a proxy (Vercel), set trust proxy BEFORE rate limiter
-app.set('trust proxy', 1) // trust first proxy
+// Trust proxy (important behind Vercel / other proxies)
+// Must be set before rate-limit and IP-based middleware
+app.set('trust proxy', 1)
 
-// Connect to database
+// Connect to DB (attempt)
 connectDB()
-  .then(() => {
-    console.log('Server ready with MongoDB connection')
-    app.listen(5000, () => console.log('Server running on port 5000'))
-  })
-  .catch((err) => console.error(err))
 
-// Security middleware
+// Security headers
 app.use(helmet())
 
-// --- CORS setup ------------------------------------------------------------
-// Build allowed origins list from env. Accept either FRONTEND_URLS (comma-separated) or FRONTEND_URL (single)
-function normalizeOrigin(u) {
-  if (!u) return ''
-  return u.trim().replace(/\/+$/, '') // remove trailing slashes
-}
-
+// Build allowed origins from env:
+// FRONTEND_URLS (comma-separated) OR FRONTEND_URL (single)
 const rawOrigins = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || ''
 const allowedOrigins = rawOrigins
   .split(',')
-  .map((s) => normalizeOrigin(s))
+  .map((s) => s.trim().replace(/\/$/, '')) // remove trailing slash
   .filter(Boolean)
 
-// Always allow localhost in non-prod for development convenience
+// allow localhost during development
 if (
-  !allowedOrigins.includes('http://localhost:3000') &&
-  process.env.NODE_ENV !== 'production'
+  process.env.NODE_ENV !== 'production' &&
+  !allowedOrigins.includes('http://localhost:3000')
 ) {
   allowedOrigins.push('http://localhost:3000')
 }
 
-console.info('[CORS] allowed origins:', allowedOrigins)
+console.log('Allowed CORS origins:', allowedOrigins)
 
-// CORS delegate that returns exact origin when allowed and enables credentials
+// CORS delegate that returns exact origin when allowed (so credentialed requests are accepted)
 const corsOptionsDelegate = (req, callback) => {
-  const rawOrigin = req.header('origin') || ''
-  const origin = normalizeOrigin(rawOrigin)
-
-  // If no origin header (same-origin or server-to-server), allow request without CORS headers
+  const origin = req.header('origin')
+  // If no origin (server-to-server request) allow
   if (!origin) {
-    // callback null with origin true allows no Access-Control-Allow-Origin header (same-origin/server internal)
-    return callback(null, { origin: false })
+    return callback(null, { origin: true, credentials: true })
   }
-
   if (allowedOrigins.includes(origin)) {
-    // Allow this origin and enable credentials
     return callback(null, {
-      origin: origin,
+      origin,
       credentials: true,
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
       allowedHeaders: [
@@ -78,68 +65,93 @@ const corsOptionsDelegate = (req, callback) => {
         'Accept',
         'X-Requested-With',
       ],
+      preflightContinue: false,
     })
   }
-
-  // Disallowed origin -> do not set CORS headers
+  // not allowed
   return callback(null, { origin: false })
 }
 
-// Use CORS middleware with delegate
+// Use CORS delegate
 app.use(cors(corsOptionsDelegate))
 
-// Explicitly handle OPTIONS preflight for all routes
+// Ensure preflight OPTIONS requests get CORS headers even when DB is down
 app.options('*', (req, res) => {
-  const rawOrigin = req.header('origin') || ''
-  const origin = normalizeOrigin(rawOrigin)
-
-  if (!origin) {
-    // No origin -> no CORS headers required for server-to-server requests
+  const origin = req.header('origin') || ''
+  if (allowedOrigins.includes(origin) || origin === '') {
+    res.setHeader('Access-Control-Allow-Origin', origin || '')
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
+    )
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type,Authorization,Accept,X-Requested-With'
+    )
     return res.sendStatus(204)
   }
-
-  if (!allowedOrigins.includes(origin)) {
-    // Origin not allowed: respond 204 without CORS headers (browser will block actual request)
-    return res.sendStatus(204)
-  }
-
-  // Allowed origin: echo it back and provide the rest of preflight headers
-  res.setHeader('Access-Control-Allow-Origin', origin)
-  res.setHeader('Access-Control-Allow-Credentials', 'true')
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
-  )
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type,Authorization,Accept,X-Requested-With'
-  )
   return res.sendStatus(204)
 })
-// ---------------------------------------------------------------------------
 
-// Rate limiting (after trust proxy & CORS)
+// Middleware: block requests when DB is not connected
+// Allow health route and OPTIONS through so monitoring / preflight works.
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next()
+  }
+
+  // Allow health check always (so you can check service health)
+  if (req.path === '/api/health' || req.path === '/api/health/') {
+    return next()
+  }
+
+  if (getDbStatus()) {
+    return next()
+  }
+
+  // DB is not connected -> send 503
+  // Also include CORS headers if origin allowed (so browsers can get the response)
+  const origin = req.header('origin') || ''
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+  }
+
+  return res.status(503).json({
+    success: false,
+    message: 'Service temporarily unavailable: database connection error',
+    code: 'SERVICE_UNAVAILABLE',
+  })
+})
+
+// Body parser
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+
+// Compression, logging
+app.use(compression())
+app.use(morgan('combined'))
+
+// Rate limiter (after trust proxy)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
   message: 'Too many requests from this IP, please try again later.',
 })
 app.use('/api/', limiter)
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+// Root route - helpful for non-API calls to show basic info or redirect to health
+app.get('/', (req, res) => {
+  return res.redirect('/api/health')
+})
 
-// Compression middleware
-app.use(compression())
-
-// Logging middleware
-app.use(morgan('combined'))
-
-// Health check endpoint
+// Health check endpoint (should always respond)
 app.get('/api/health', (req, res) => {
+  const dbUp = getDbStatus()
   res.json({
-    status: 'OK',
+    status: dbUp ? 'OK' : 'DEGRADED',
+    dbConnected: dbUp,
     timestamp: new Date().toISOString(),
     version: '1.0.0',
   })
@@ -152,18 +164,18 @@ app.use('/api/users', userRoutes)
 app.use('/api/lawyers', lawyerRoutes)
 app.use('/api/qa', qaRoutes)
 
-// Error handling middleware
+// Error handlers
 app.use(notFound)
 app.use(errorHandler)
 
-// Export the app for serverless deployment (Vercel)
+// Export app (for serverless)
 module.exports = app
 
-// Optional: run server locally if not in serverless environment
+// Run locally if executed directly
 if (require.main === module) {
   const PORT = process.env.PORT || 5000
   app.listen(PORT, () => {
     console.log(`🚀 Server running locally on port ${PORT}`)
-    console.log(`📚 API Documentation: http://localhost:${PORT}/api/health`)
+    console.log(`📚 API Health: http://localhost:${PORT}/api/health`)
   })
 }

@@ -1,9 +1,11 @@
+/* src/middleware/errorHandler.js */
+
 const errorHandler = (err, req, res) => {
   let error = { ...err }
   error.message = err.message
 
-  // Log error
-  console.error(err)
+  // Log error (server-side)
+  console.error('Error middleware caught:', err)
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
@@ -41,10 +43,11 @@ const errorHandler = (err, req, res) => {
   })
 }
 
+// Handle unknown routes
 const notFound = (req, res, next) => {
   const error = new Error(`Not Found - ${req.originalUrl}`)
   res.status(404)
-  next(error)
+  next(error) // Pass to errorHandler
 }
 
 module.exports = {
