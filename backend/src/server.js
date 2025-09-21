@@ -18,7 +18,7 @@ const lawyerRoutes = require('./routes/lawyers')
 const qaRoutes = require('./routes/qa')
 const { errorHandler, notFound } = require('./middleware/errorHandler')
 const { connectDB, isDBConnected } = require('./config/database')
-const dbRequired = require('./middleware/dbRequired')
+const { dbRequired } = require('./middleware/dbRequired')
 
 const app = express()
 
