@@ -11,41 +11,64 @@ const compression = require('compression')
 const rateLimit = require('express-rate-limit')
 require('dotenv').config()
 
-const authRoutes = require('./routes/auth')
-const documentRoutes = require('./routes/documents')
-const userRoutes = require('./routes/users')
-const lawyerRoutes = require('./routes/lawyers')
-const qaRoutes = require('./routes/qa')
 const { errorHandler, notFound } = require('./middleware/errorHandler')
 const { connectDB, isDBConnected } = require('./config/database')
 const { dbRequired } = require('./middleware/dbRequired')
+
+// Import routes with error handling
+const loadRoute = (path) => {
+  try {
+    const route = require(path)
+    if (!route || typeof route !== 'function') {
+      console.error(`Error: Route ${path} is not a valid Express router`)
+      process.exit(1)
+    }
+    return route
+  } catch (err) {
+    console.error(`Error loading route ${path}:`, err)
+    process.exit(1)
+  }
+}
+
+const authRoutes = loadRoute('./routes/auth')
+const documentRoutes = loadRoute('./routes/documents')
+const userRoutes = loadRoute('./routes/users')
+const lawyerRoutes = loadRoute('./routes/lawyers')
+const qaRoutes = loadRoute('./routes/qa')
 
 const app = express()
 
 // Set trust proxy early (important behind Vercel / proxies)
 app.set('trust proxy', 1)
 
-// Connect to DB with better error handling and logging
+// Connect to DB with comprehensive error handling and monitoring
+const mongoose = require('mongoose')
+
+// Set up mongoose connection handlers before attempting to connect
+mongoose.connection.on('connected', () => {
+  console.log('✅ MongoDB connected successfully')
+})
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', {
+    message: err.message,
+    code: err.code,
+    name: err.name,
+  })
+})
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected! Attempting to reconnect...')
+  setTimeout(connectDB, 5000)
+})
+
+// Initial connection
 connectDB().catch((err) => {
-  console.error('Database Connection Error:', {
+  console.error('Initial Database Connection Error:', {
     message: err.message,
     code: err.code,
     name: err.name,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-  })
-
-  // Set up MongoDB reconnection monitor
-  mongoose.connection.on('disconnected', () => {
-    console.log('MongoDB disconnected! Attempting to reconnect...')
-    setTimeout(connectDB, 5000)
-  })
-
-  mongoose.connection.on('error', (err) => {
-    console.error('MongoDB connection error:', err)
-  })
-
-  mongoose.connection.on('connected', () => {
-    console.log('MongoDB reconnected successfully')
   })
 })
 
@@ -141,12 +164,22 @@ app.get('/api/health', (req, res) => {
 })
 
 // Mount routes that require DB behind dbRequired middleware
-// If you'd prefer some routes to be available even without DB, mount them before dbRequired.
-app.use('/api/auth', dbRequired, authRoutes)
-app.use('/api/documents', dbRequired, documentRoutes)
-app.use('/api/users', dbRequired, userRoutes)
-app.use('/api/lawyers', dbRequired, lawyerRoutes)
-app.use('/api/qa', dbRequired, qaRoutes)
+// Verify routes are properly exported before mounting
+const routes = [
+  { path: '/api/auth', router: authRoutes },
+  { path: '/api/documents', router: documentRoutes },
+  { path: '/api/users', router: userRoutes },
+  { path: '/api/lawyers', router: lawyerRoutes },
+  { path: '/api/qa', router: qaRoutes },
+]
+
+routes.forEach(({ path, router }) => {
+  if (!router || typeof router !== 'function') {
+    console.error(`Error: Route ${path} is not properly exported. Got:`, router)
+    process.exit(1)
+  }
+  app.use(path, dbRequired, router)
+})
 
 // Generic unknown-route handler and error handler
 app.use(notFound)
