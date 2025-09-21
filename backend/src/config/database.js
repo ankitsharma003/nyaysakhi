@@ -1,9 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* src/config/database.js */
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
+import mongoose from 'mongoose'
+import dotenv from 'dotenv'
 
-const mongoose = require('mongoose')
-require('dotenv').config()
+dotenv.config()
 
 const MONGODB_URI =
   process.env.MONGODB_URI || 'mongodb://localhost:27017/nyaymitra'
@@ -54,6 +54,7 @@ async function _connectWithRetry(retriesLeft = MAX_RETRIES) {
 }
 
 // Public function to initiate connection (call once at app start)
+// eslint-disable-next-line no-unused-vars
 async function connectDB() {
   if (connected) {
     return
@@ -115,8 +116,4 @@ function isDBConnected() {
 }
 
 // Helpful: exposes the underlying mongoose for models/tests
-module.exports = {
-  connectDB,
-  isDBConnected,
-  mongoose,
-}
+export { _connectWithRetry as connectDB, isDBConnected, mongoose }

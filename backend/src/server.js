@@ -6,59 +6,24 @@ import morgan from 'morgan'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
 import { errorHandler, notFound } from './middleware/errorHandler.js'
-import { connectDB, isDBConnected } from './config/database.js'
+import { connectDB, isDBConnected, mongoose } from './config/database.js'
 import { dbRequired } from './middleware/dbRequired.js'
 
 // Initialize dotenv
 dotenv.config()
 
-// ES modules compatibility
-const __filename = fileURLToPath(import.meta.url)
-// eslint-disable-next-line no-undef
-const __dirname = dirname(__filename)
-
-// Import routes with error handling
-const loadRoute = (routePath) => {
-  try {
-    // Use path.join to create absolute paths
-    const absolutePath = path.join(__dirname, routePath)
-    console.log(`Loading route from: ${absolutePath}`)
-
-    const route = require(absolutePath)
-    if (!route || typeof route !== 'function') {
-      console.error(`Error: Route ${routePath} is not a valid Express router`)
-      process.exit(1)
-    }
-    return route
-  } catch (err) {
-    console.error(
-      `Error loading route ${routePath}:`,
-      err,
-      '\nStack:',
-      err.stack
-    )
-    process.exit(1)
-  }
-}
-
-// Load routes using absolute paths
-const authRoutes = loadRoute('routes/auth')
-const documentRoutes = loadRoute('routes/documents')
-const userRoutes = loadRoute('routes/users')
-const lawyerRoutes = loadRoute('routes/lawyers')
-const qaRoutes = loadRoute('routes/qa')
+// Import routes directly
+import authRoutes from './routes/auth.js'
+import documentRoutes from './routes/documents.js'
+import userRoutes from './routes/users.js'
+import lawyerRoutes from './routes/lawyers.js'
+import qaRoutes from './routes/qa.js'
 
 const app = express()
 
 // Set trust proxy early (important behind Vercel / proxies)
 app.set('trust proxy', 1)
-
-// Connect to DB with comprehensive error handling and monitoring
-const mongoose = require('mongoose')
 
 // Set up mongoose connection handlers before attempting to connect
 mongoose.connection.on('connected', () => {
@@ -201,12 +166,4 @@ routes.forEach(({ path, router }) => {
 app.use(notFound)
 app.use(errorHandler)
 
-module.exports = app
-
-// Run locally if started directly
-if (require.main === module) {
-  const PORT = process.env.PORT || 5000
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running locally on port ${PORT}`)
-  })
-}
+export default app
