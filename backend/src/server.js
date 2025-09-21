@@ -15,26 +15,38 @@ const { errorHandler, notFound } = require('./middleware/errorHandler')
 const { connectDB, isDBConnected } = require('./config/database')
 const { dbRequired } = require('./middleware/dbRequired')
 
+const path = require('path')
+
 // Import routes with error handling
-const loadRoute = (path) => {
+const loadRoute = (routePath) => {
   try {
-    const route = require(path)
+    // Use path.join to create absolute paths
+    const absolutePath = path.join(__dirname, routePath)
+    console.log(`Loading route from: ${absolutePath}`)
+
+    const route = require(absolutePath)
     if (!route || typeof route !== 'function') {
-      console.error(`Error: Route ${path} is not a valid Express router`)
+      console.error(`Error: Route ${routePath} is not a valid Express router`)
       process.exit(1)
     }
     return route
   } catch (err) {
-    console.error(`Error loading route ${path}:`, err)
+    console.error(
+      `Error loading route ${routePath}:`,
+      err,
+      '\nStack:',
+      err.stack
+    )
     process.exit(1)
   }
 }
 
-const authRoutes = loadRoute('./routes/auth')
-const documentRoutes = loadRoute('./routes/documents')
-const userRoutes = loadRoute('./routes/users')
-const lawyerRoutes = loadRoute('./routes/lawyers')
-const qaRoutes = loadRoute('./routes/qa')
+// Load routes using absolute paths
+const authRoutes = loadRoute('routes/auth')
+const documentRoutes = loadRoute('routes/documents')
+const userRoutes = loadRoute('routes/users')
+const lawyerRoutes = loadRoute('routes/lawyers')
+const qaRoutes = loadRoute('routes/qa')
 
 const app = express()
 
