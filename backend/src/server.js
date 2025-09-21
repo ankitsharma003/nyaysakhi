@@ -25,10 +25,28 @@ const app = express()
 // Set trust proxy early (important behind Vercel / proxies)
 app.set('trust proxy', 1)
 
-// Connect to DB (attempts + retries). Do NOT process.exit on failure in serverless.
+// Connect to DB with better error handling and logging
 connectDB().catch((err) => {
-  console.error('Initial connectDB() rejected:', err && err.message)
-  // We continue; health and dbRequired will signal downtime.
+  console.error('Database Connection Error:', {
+    message: err.message,
+    code: err.code,
+    name: err.name,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+  })
+
+  // Set up MongoDB reconnection monitor
+  mongoose.connection.on('disconnected', () => {
+    console.log('MongoDB disconnected! Attempting to reconnect...')
+    setTimeout(connectDB, 5000)
+  })
+
+  mongoose.connection.on('error', (err) => {
+    console.error('MongoDB connection error:', err)
+  })
+
+  mongoose.connection.on('connected', () => {
+    console.log('MongoDB reconnected successfully')
+  })
 })
 
 // Security & cors

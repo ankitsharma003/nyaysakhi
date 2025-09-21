@@ -24,12 +24,13 @@ async function _connectWithRetry(retriesLeft = MAX_RETRIES) {
   connecting = true
 
   try {
-    // Use modern mongoose defaults; options are optional in recent mongoose versions
+    // Use modern mongoose defaults with additional options for stability
     await mongoose.connect(MONGODB_URI, {
-      // useNewUrlParser: true,
-      // useUnifiedTopology: true,
-      // useCreateIndex: true,
-      // useFindAndModify: false,
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4, // Use IPv4, skip trying IPv6
     })
 
     connected = true
