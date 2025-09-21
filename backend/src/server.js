@@ -46,6 +46,13 @@ async function initializeDatabase() {
   dbConnectionAttempted = true
   console.log('🔌 Initializing database connection...')
   
+  // Check if we're in a serverless environment
+  const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  
+  if (isServerless) {
+    console.log('☁️ Detected serverless environment, optimizing connection...')
+  }
+  
   try {
     const connected = await connectDB()
     if (connected) {
@@ -53,10 +60,18 @@ async function initializeDatabase() {
     } else {
       console.warn('⚠️ Database connection failed, but server will continue running')
       console.warn('💡 Some features may be limited until database is available')
+      
+      if (isServerless) {
+        console.warn('☁️ In serverless environment, connection will be retried on next request')
+      }
     }
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message)
     console.warn('⚠️ Server will continue running in degraded mode')
+    
+    if (isServerless) {
+      console.warn('☁️ Serverless environment detected - connection will be retried on next request')
+    }
   }
 }
 

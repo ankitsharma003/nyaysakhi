@@ -12,9 +12,10 @@ const MONGODB_URI =
 let connected = false
 let connecting = false
 
-// Basic retry config
-const MAX_RETRIES = parseInt(process.env.MONGODB_CONNECT_RETRIES || '5', 10)
-const RETRY_DELAY_MS = parseInt(
+// Basic retry config - reduce retries for serverless environments
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production'
+const MAX_RETRIES = isServerless ? 2 : parseInt(process.env.MONGODB_CONNECT_RETRIES || '5', 10)
+const RETRY_DELAY_MS = isServerless ? 2000 : parseInt(
   process.env.MONGODB_RETRY_DELAY_MS || '5000',
   10
 )
@@ -31,17 +32,28 @@ async function _connectWithRetry(retriesLeft = MAX_RETRIES) {
     console.log(`📍 Connection URI: ${MONGODB_URI.replace(/\/\/.*@/, '//***:***@')}`) // Hide credentials in logs
     
     // Use modern mongoose defaults with additional options for stability
-    await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 10000, // Increased timeout
+    const connectionOptions = {
+      serverSelectionTimeoutMS: 30000, // Increased timeout for Atlas
       socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000, // Added connection timeout
+      connectTimeoutMS: 30000, // Increased connection timeout
       maxPoolSize: 10, // Maintain up to 10 socket connections
-      serverApi: {
+      retryWrites: true,
+      w: 'majority',
+    }
+
+    // Add Atlas-specific options if using Atlas
+    if (MONGODB_URI.includes('mongodb+srv://') || MONGODB_URI.includes('atlas')) {
+      connectionOptions.serverApi = {
         version: '1',
         strict: false,
         deprecationErrors: true,
-      },
-    })
+      }
+      // Atlas-specific retry settings
+      connectionOptions.retryReads = true
+      connectionOptions.retryWrites = true
+    }
+
+    await mongoose.connect(MONGODB_URI, connectionOptions)
 
     connected = true
     connecting = false
