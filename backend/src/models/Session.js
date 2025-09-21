@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const mongoose = require('mongoose')
+import mongoose from 'mongoose'
 
 const sessionSchema = new mongoose.Schema(
   {
@@ -99,4 +97,4 @@ sessionSchema.methods.isExpired = function () {
   return this.expiresAt < new Date()
 }
 
-module.exports = mongoose.model('Session', sessionSchema)
+export default mongoose.model('Session', sessionSchema)

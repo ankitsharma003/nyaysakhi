@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const mongoose = require('mongoose')
+import mongoose from 'mongoose'
 
 const documentSchema = new mongoose.Schema(
   {
@@ -248,4 +246,4 @@ documentSchema.methods.addExtractedData = function (data) {
   return this.save()
 }
 
-module.exports = mongoose.model('Document', documentSchema)
+export default mongoose.model('Document', documentSchema)

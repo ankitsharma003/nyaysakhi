@@ -1,17 +1,14 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const express = require('express')
-// const bcrypt = require('bcryptjs')
-const jwt = require('jsonwebtoken')
-const speakeasy = require('speakeasy')
-const QRCode = require('qrcode')
-const crypto = require('crypto')
-const { body, validationResult } = require('express-validator')
-const User = require('../models/User')
-const Session = require('../models/Session')
-const Lawyer = require('../models/Lawyer')
-const { protect } = require('../middleware/auth')
-const { isDBConnected } = require('../config/database')
+import express from 'express'
+import jwt from 'jsonwebtoken'
+import speakeasy from 'speakeasy'
+import QRCode from 'qrcode'
+import crypto from 'crypto'
+import { body, validationResult } from 'express-validator'
+import User from '../models/User.js'
+import Session from '../models/Session.js'
+import Lawyer from '../models/Lawyer.js'
+import { protect } from '../middleware/auth.js'
+import { isDBConnected } from '../config/database.js'
 
 const router = express.Router()
 
@@ -67,6 +64,7 @@ const createSession = async (user, deviceInfo, ipAddress, userAgent) => {
  * method doesn't exist on the model.
  */
 async function findUserByEmailModel(email, selectFields = '') {
+  // eslint-disable-next-line no-useless-catch
   try {
     if (typeof User.findByEmail === 'function') {
       // some implementations may return a Query — await resolves it
@@ -811,4 +809,4 @@ router.post(
   }
 )
 
-module.exports = router
+export default router

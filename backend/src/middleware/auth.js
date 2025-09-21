@@ -1,8 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-// const jwt = require('jsonwebtoken')
-// const User = require('../models/User')
-const Session = require('../models/Session')
+import Session from '../models/Session.js'
 
 // Protect routes
 const protect = async (req, res, next) => {

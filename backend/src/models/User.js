@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const mongoose = require('mongoose')
-const bcrypt = require('bcryptjs')
+import mongoose from 'mongoose'
+import bcrypt from 'bcryptjs'
 
 const userSchema = new mongoose.Schema(
   {
@@ -31,7 +29,7 @@ const userSchema = new mongoose.Schema(
     phone: {
       type: String,
       trim: true,
-      match: [/^[+]?[\d\s\-\(\)]+$/, 'Please enter a valid phone number'],
+      match: [/^[+]?[\d\s\-()]+$/, 'Please enter a valid phone number'],
     },
     role: {
       type: String,
@@ -184,4 +182,4 @@ userSchema.statics.findByRole = function (role) {
   return this.find({ role, isActive: true })
 }
 
-module.exports = mongoose.model('User', userSchema)
+export default mongoose.model('User', userSchema)

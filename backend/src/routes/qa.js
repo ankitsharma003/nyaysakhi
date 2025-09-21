@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const express = require('express')
-const { pool } = require('../config/database')
+import express from 'express'
+import { pool } from '../config/database.js'
 
 const router = express.Router()
 
@@ -203,4 +201,4 @@ router.post('/submit-question', async (req, res) => {
   }
 })
 
-module.exports = router
+export default router

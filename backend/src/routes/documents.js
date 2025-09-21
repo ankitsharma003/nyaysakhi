@@ -1,13 +1,10 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const express = require('express')
-const multer = require('multer')
-const path = require('path')
-// const sharp = require('sharp');
-const { TesseractWorker } = require('tesseract.js')
-const { protect } = require('../middleware/auth')
-const { pool } = require('../config/database')
-const { extractStructuredData } = require('../utils/documentProcessor')
+import express from 'express'
+import multer from 'multer'
+import path from 'path'
+import { TesseractWorker } from 'tesseract.js'
+import { protect } from '../middleware/auth.js'
+import { pool } from '../config/database.js'
+import { extractStructuredData } from '../utils/documentProcessor.js'
 
 const router = express.Router()
 
@@ -243,4 +240,4 @@ router.delete('/:id', protect, async (req, res) => {
   }
 })
 
-module.exports = router
+export default router

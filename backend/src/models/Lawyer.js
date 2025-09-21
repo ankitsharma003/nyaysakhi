@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const mongoose = require('mongoose')
+import mongoose from 'mongoose'
 
 const lawyerSchema = new mongoose.Schema(
   {
@@ -285,4 +283,4 @@ lawyerSchema.methods.addCase = function (isSuccessful = false) {
   return this.save()
 }
 
-module.exports = mongoose.model('Lawyer', lawyerSchema)
+export default mongoose.model('Lawyer', lawyerSchema)

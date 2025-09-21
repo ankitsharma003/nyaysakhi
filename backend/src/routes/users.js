@@ -1,10 +1,8 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const express = require('express')
-const { body, validationResult } = require('express-validator')
-const User = require('../models/User')
-const Lawyer = require('../models/Lawyer')
-const { protect } = require('../middleware/auth')
+import express from 'express'
+import { body, validationResult } from 'express-validator'
+import User from '../models/User.js'
+import Lawyer from '../models/Lawyer.js'
+import { protect } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -271,4 +269,4 @@ router.delete(
   }
 )
 
-module.exports = router
+export default router
