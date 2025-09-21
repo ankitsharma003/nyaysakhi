@@ -11,7 +11,7 @@ const User = require('../models/User')
 const Session = require('../models/Session')
 const Lawyer = require('../models/Lawyer')
 const { protect } = require('../middleware/auth')
-const { isConnected } = require('../config/database')
+const { isDBConnected } = require('../config/database')
 
 const router = express.Router()
 
@@ -19,7 +19,7 @@ const router = express.Router()
  * Helper: returns 503 if DB is not connected
  */
 function requireDb(req, res) {
-  if (!isConnected()) {
+  if (!isDBConnected()) {
     res.status(503).json({
       success: false,
       message: 'Service temporarily unavailable: database connection error',
