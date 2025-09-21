@@ -7,7 +7,7 @@ import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
 import { errorHandler, notFound } from './middleware/errorHandler.js'
-import { connectDB, isDBConnected, mongoose } from './config/database.js'
+import { connectDB, isDBConnected, getConnectionStatus, mongoose } from './config/database.js'
 import dbRequired from './middleware/dbRequired.js'
 
 // Initialize dotenv
@@ -35,33 +35,33 @@ const app = express()
 // Set trust proxy early (important behind Vercel / proxies)
 app.set('trust proxy', 1)
 
-// Set up mongoose connection handlers before attempting to connect
-mongoose.connection.on('connected', () => {
-  console.log('✅ MongoDB connected successfully')
-})
+// Initialize database connection
+let dbConnectionAttempted = false
 
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', {
-    message: err.message,
-    code: err.code,
-    name: err.name,
-  })
-})
+async function initializeDatabase() {
+  if (dbConnectionAttempted) {
+    return
+  }
+  
+  dbConnectionAttempted = true
+  console.log('🔌 Initializing database connection...')
+  
+  try {
+    const connected = await connectDB()
+    if (connected) {
+      console.log('✅ Database connection established successfully')
+    } else {
+      console.warn('⚠️ Database connection failed, but server will continue running')
+      console.warn('💡 Some features may be limited until database is available')
+    }
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error.message)
+    console.warn('⚠️ Server will continue running in degraded mode')
+  }
+}
 
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected! Attempting to reconnect...')
-  setTimeout(connectDB, 5000)
-})
-
-// Initial connection
-connectDB().catch((err) => {
-  console.error('Initial Database Connection Error:', {
-    message: err.message,
-    code: err.code,
-    name: err.name,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-  })
-})
+// Start database connection
+initializeDatabase()
 
 // Security & cors
 app.use(helmet())
@@ -137,21 +137,35 @@ app.use(morgan('combined'))
 
 // Health endpoint: returns OK if DB connected, otherwise DEGRADED
 app.get('/api/health', (req, res) => {
+  const dbStatus = getConnectionStatus()
   const dbUp = isDBConnected()
-  if (dbUp) {
-    return res.status(200).json({
-      status: 'OK',
-      dbConnected: true,
-      timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0',
-    })
-  }
-  return res.status(200).json({
-    status: 'DEGRADED',
-    dbConnected: false,
+  
+  const healthResponse = {
+    status: dbUp ? 'OK' : 'DEGRADED',
+    dbConnected: dbUp,
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0',
-  })
+    database: {
+      status: dbStatus.readyState,
+      host: dbStatus.host,
+      name: dbStatus.name,
+      error: dbStatus.error
+    },
+    environment: process.env.NODE_ENV || 'development',
+    uptime: process.uptime()
+  }
+
+  // Return 200 for both OK and DEGRADED status
+  // Only return 503 for critical failures
+  if (dbStatus.error && dbStatus.error.includes('not initialized')) {
+    return res.status(503).json({
+      ...healthResponse,
+      status: 'ERROR',
+      message: 'Database not initialized'
+    })
+  }
+
+  return res.status(200).json(healthResponse)
 })
 
 // Mount routes that require DB behind dbRequired middleware
