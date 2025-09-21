@@ -2,13 +2,15 @@
   "name": "nyay-mitra-backend",
   "version": "1.0.0",
   "description": "Backend API for Nyāy Mitra legal assistance platform",
-  "main": "src/server.js",
+  "main": "index.js",
+  "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "dev": "nodemon index.js",
+    "start": "node index.js",
     "test": "jest",
     "lint": "eslint src/",
-    "build": "echo 'No build needed'",
+    "build": "node index.js",
+    "vercel-build": "echo 'Build step completed'",
     "lint:fix": "eslint src/ --fix"
   },
   "keywords": [

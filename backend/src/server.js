@@ -1,21 +1,25 @@
 /* src/server.js */
-'use strict'
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/no-require-imports */
+import express from 'express'
+import cors from 'cors'
+import helmet from 'helmet'
+import morgan from 'morgan'
+import compression from 'compression'
+import rateLimit from 'express-rate-limit'
+import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-const express = require('express')
-const cors = require('cors')
-const helmet = require('helmet')
-const morgan = require('morgan')
-const compression = require('compression')
-const rateLimit = require('express-rate-limit')
-require('dotenv').config()
+import { errorHandler, notFound } from './middleware/errorHandler.js'
+import { connectDB, isDBConnected } from './config/database.js'
+import { dbRequired } from './middleware/dbRequired.js'
 
-const { errorHandler, notFound } = require('./middleware/errorHandler')
-const { connectDB, isDBConnected } = require('./config/database')
-const { dbRequired } = require('./middleware/dbRequired')
+// Initialize dotenv
+dotenv.config()
 
-const path = require('path')
+// ES modules compatibility
+const __filename = fileURLToPath(import.meta.url)
+// eslint-disable-next-line no-undef
+const __dirname = dirname(__filename)
 
 // Import routes with error handling
 const loadRoute = (routePath) => {
