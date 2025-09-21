@@ -11,8 +11,24 @@ const User = require('../models/User')
 const Session = require('../models/Session')
 const Lawyer = require('../models/Lawyer')
 const { protect } = require('../middleware/auth')
+const { isConnected } = require('../config/database')
 
 const router = express.Router()
+
+/**
+ * Helper: returns 503 if DB is not connected
+ */
+function requireDb(req, res) {
+  if (!isConnected()) {
+    res.status(503).json({
+      success: false,
+      message: 'Service temporarily unavailable: database connection error',
+      code: 'SERVICE_UNAVAILABLE',
+    })
+    return false
+  }
+  return true
+}
 
 // Generate JWT tokens
 const generateTokens = (userId) => {
@@ -39,10 +55,28 @@ const createSession = async (user, deviceInfo, ipAddress, userAgent) => {
     deviceInfo,
     ipAddress,
     userAgent,
+    isActive: true,
   })
 
   await session.save()
   return session
+}
+
+/**
+ * Safe model-email lookup that falls back to findOne if findByEmail static
+ * method doesn't exist on the model.
+ */
+async function findUserByEmailModel(email, selectFields = '') {
+  try {
+    if (typeof User.findByEmail === 'function') {
+      // some implementations may return a Query — await resolves it
+      return await User.findByEmail(email).select(selectFields)
+    }
+    return await User.findOne({ email }).select(selectFields)
+  } catch (err) {
+    // rethrow to be handled by caller
+    throw err
+  }
 }
 
 // @desc    Register user
@@ -86,8 +120,10 @@ router.post(
       .withMessage('Language must be either en or hi'),
   ],
   async (req, res) => {
+    if (!requireDb(req, res)) return
+
     try {
-      // Check validation errors
+      // Validation
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
         return res.status(400).json({
@@ -108,8 +144,8 @@ router.post(
         language = 'en',
       } = req.body
 
-      // Check if user already exists
-      const existingUser = await User.findByEmail(email)
+      // Check existing user (safe lookup)
+      const existingUser = await findUserByEmailModel(email)
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -137,20 +173,20 @@ router.post(
           user: user._id,
           barCouncilNumber: req.body.barCouncilNumber || 'PENDING',
           practiceAreas: req.body.practiceAreas || [],
-          districts: req.body.districts || [district],
+          districts: req.body.districts || (district ? [district] : []),
           languages: req.body.languages || [language],
           bio: req.body.bio || '',
         })
         await lawyer.save()
       }
 
-      // Generate email verification token
+      // Generate email verification token (store on user)
       const emailVerificationToken = crypto.randomBytes(32).toString('hex')
       user.emailVerificationToken = emailVerificationToken
       user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000 // 24 hours
       await user.save()
 
-      // TODO: Send verification email
+      // TODO: send verification email via your mailer
 
       res.status(201).json({
         success: true,
@@ -189,8 +225,10 @@ router.post(
     body('password').notEmpty().withMessage('Password is required'),
   ],
   async (req, res) => {
+    if (!requireDb(req, res)) return
+
     try {
-      // Check validation errors
+      // Validation
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
         return res.status(400).json({
@@ -203,7 +241,10 @@ router.post(
       const { email, password } = req.body
 
       // Find user and include password for comparison
-      const user = await User.findByEmail(email).select('+password')
+      const user = await findUserByEmailModel(
+        email,
+        '+password +twoFactorEnabled +twoFactorSecret +isLocked'
+      )
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -211,7 +252,7 @@ router.post(
         })
       }
 
-      // Check if account is locked
+      // Check if account is locked (field name may vary)
       if (user.isLocked) {
         return res.status(423).json({
           success: false,
@@ -220,44 +261,52 @@ router.post(
         })
       }
 
-      // Check password
+      // Compare password (expects instance method comparePassword)
       const isMatch = await user.comparePassword(password)
       if (!isMatch) {
-        // Increment login attempts
-        await user.incLoginAttempts()
+        // Increment login attempts (if implemented)
+        if (typeof user.incLoginAttempts === 'function') {
+          try {
+            await user.incLoginAttempts()
+          } catch (e) {
+            console.warn('incLoginAttempts failed:', e)
+          }
+        }
         return res.status(401).json({
           success: false,
           message: 'Invalid credentials',
         })
       }
 
-      // Reset login attempts on successful login
-      await user.resetLoginAttempts()
+      // Reset login attempts on successful login if method exists
+      if (typeof user.resetLoginAttempts === 'function') {
+        try {
+          await user.resetLoginAttempts()
+        } catch (e) {
+          console.warn('resetLoginAttempts failed:', e)
+        }
+      }
 
       // Update last login
       user.lastLogin = new Date()
       await user.save()
 
-      // Get device info
+      // Device info
+      const ua = req.headers['user-agent'] || ''
       const deviceInfo = {
-        type: req.headers['user-agent'].includes('Mobile')
+        type: ua.includes('Mobile')
           ? 'mobile'
-          : req.headers['user-agent'].includes('Tablet')
+          : ua.includes('Tablet')
             ? 'tablet'
             : 'desktop',
-        os: req.headers['user-agent'].split(' ')[0] || 'Unknown',
-        browser: req.headers['user-agent'].split(' ')[1] || 'Unknown',
+        os: ua.split(' ')[0] || 'Unknown',
+        browser: ua.split(' ')[1] || 'Unknown',
       }
 
       // Create session
-      const session = await createSession(
-        user,
-        deviceInfo,
-        req.ip,
-        req.headers['user-agent']
-      )
+      const session = await createSession(user, deviceInfo, req.ip, ua)
 
-      // Check if 2FA is enabled
+      // If 2FA enabled: ask for 2FA (do not return tokens yet)
       if (user.twoFactorEnabled) {
         return res.json({
           success: true,
@@ -312,6 +361,8 @@ router.post(
       .withMessage('Code must be 6 digits'),
   ],
   async (req, res) => {
+    if (!requireDb(req, res)) return
+
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
@@ -324,7 +375,10 @@ router.post(
 
       const { email, code } = req.body
 
-      const user = await User.findByEmail(email).select('+twoFactorSecret')
+      const user = await findUserByEmailModel(
+        email,
+        '+twoFactorSecret +twoFactorEnabled +password'
+      )
       if (!user || !user.twoFactorEnabled) {
         return res.status(400).json({
           success: false,
@@ -350,24 +404,20 @@ router.post(
       user.lastLogin = new Date()
       await user.save()
 
-      // Get device info
+      // Device info
+      const ua = req.headers['user-agent'] || ''
       const deviceInfo = {
-        type: req.headers['user-agent'].includes('Mobile')
+        type: ua.includes('Mobile')
           ? 'mobile'
-          : req.headers['user-agent'].includes('Tablet')
+          : ua.includes('Tablet')
             ? 'tablet'
             : 'desktop',
-        os: req.headers['user-agent'].split(' ')[0] || 'Unknown',
-        browser: req.headers['user-agent'].split(' ')[1] || 'Unknown',
+        os: ua.split(' ')[0] || 'Unknown',
+        browser: ua.split(' ')[1] || 'Unknown',
       }
 
       // Create session
-      const session = await createSession(
-        user,
-        deviceInfo,
-        req.ip,
-        req.headers['user-agent']
-      )
+      const session = await createSession(user, deviceInfo, req.ip, ua)
 
       res.json({
         success: true,
@@ -404,6 +454,9 @@ router.post(
 // @route   GET /api/auth/me
 // @access  Private
 router.get('/me', protect, async (req, res) => {
+  // protect middleware should already ensure DB-backed session & user; still check DB in case
+  if (!requireDb(req, res)) return
+
   try {
     res.json({
       success: true,
@@ -425,6 +478,8 @@ router.get('/me', protect, async (req, res) => {
 // @route   POST /api/auth/refresh
 // @access  Public
 router.post('/refresh', async (req, res) => {
+  if (!requireDb(req, res)) return
+
   try {
     const { refreshToken } = req.body
 
@@ -435,10 +490,6 @@ router.post('/refresh', async (req, res) => {
       })
     }
 
-    // Verify refresh token
-    // const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET)
-
-    // Find session
     const session = await Session.findOne({
       refreshToken,
       isActive: true,
@@ -452,12 +503,10 @@ router.post('/refresh', async (req, res) => {
       })
     }
 
-    // Generate new tokens
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(
       session.user._id
     )
 
-    // Update session
     session.token = accessToken
     session.refreshToken = newRefreshToken
     session.expiresAt = new Date(Date.now() + 15 * 60 * 1000)
@@ -484,10 +533,14 @@ router.post('/refresh', async (req, res) => {
 // @route   POST /api/auth/logout
 // @access  Private
 router.post('/logout', protect, async (req, res) => {
+  if (!requireDb(req, res)) return
+
   try {
     // Deactivate current session
-    req.session.isActive = false
-    await req.session.save()
+    if (req.session) {
+      req.session.isActive = false
+      await req.session.save()
+    }
 
     res.json({
       success: true,
@@ -506,9 +559,16 @@ router.post('/logout', protect, async (req, res) => {
 // @route   POST /api/auth/logout-all
 // @access  Private
 router.post('/logout-all', protect, async (req, res) => {
+  if (!requireDb(req, res)) return
+
   try {
     // Deactivate all sessions for user
-    await Session.revokeAllForUser(req.user._id)
+    if (req.user && typeof Session.revokeAllForUser === 'function') {
+      await Session.revokeAllForUser(req.user._id)
+    } else {
+      // Fallback: update many
+      await Session.updateMany({ user: req.user._id }, { isActive: false })
+    }
 
     res.json({
       success: true,
@@ -527,8 +587,15 @@ router.post('/logout-all', protect, async (req, res) => {
 // @route   GET /api/auth/sessions
 // @access  Private
 router.get('/sessions', protect, async (req, res) => {
+  if (!requireDb(req, res)) return
+
   try {
-    const sessions = await Session.findActiveByUser(req.user._id)
+    let sessions = []
+    if (typeof Session.findActiveByUser === 'function') {
+      sessions = await Session.findActiveByUser(req.user._id)
+    } else {
+      sessions = await Session.find({ user: req.user._id, isActive: true })
+    }
 
     res.json({
       success: true,
@@ -547,6 +614,8 @@ router.get('/sessions', protect, async (req, res) => {
 // @route   DELETE /api/auth/sessions/:sessionId
 // @access  Private
 router.delete('/sessions/:sessionId', protect, async (req, res) => {
+  if (!requireDb(req, res)) return
+
   try {
     const session = await Session.findOne({
       _id: req.params.sessionId,
@@ -560,7 +629,12 @@ router.delete('/sessions/:sessionId', protect, async (req, res) => {
       })
     }
 
-    await session.revoke()
+    if (typeof session.revoke === 'function') {
+      await session.revoke()
+    } else {
+      session.isActive = false
+      await session.save()
+    }
 
     res.json({
       success: true,
@@ -579,8 +653,13 @@ router.delete('/sessions/:sessionId', protect, async (req, res) => {
 // @route   POST /api/auth/enable-2fa
 // @access  Private
 router.post('/enable-2fa', protect, async (req, res) => {
+  if (!requireDb(req, res)) return
+
   try {
     const user = await User.findById(req.user._id).select('+twoFactorSecret')
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' })
+    }
 
     if (user.twoFactorEnabled) {
       return res.status(400).json({
@@ -630,6 +709,8 @@ router.post(
   ],
   protect,
   async (req, res) => {
+    if (!requireDb(req, res)) return
+
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
@@ -689,6 +770,8 @@ router.post(
   [body('password').notEmpty().withMessage('Password is required')],
   protect,
   async (req, res) => {
+    if (!requireDb(req, res)) return
+
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
