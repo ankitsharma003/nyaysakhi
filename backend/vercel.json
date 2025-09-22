@@ -19,5 +19,8 @@
     "index.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "installCommand": "cd backend && npm install",
+  "buildCommand": "cd backend && npm run build || echo 'No build command'",
+  "outputDirectory": "backend"
 }
