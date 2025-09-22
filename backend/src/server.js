@@ -32,6 +32,52 @@ import qaRoutes from './routes/qa.js'
 
 const app = express()
 
+// Build allowed origins
+const rawOrigins = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
+const allowedOrigins = rawOrigins
+  .split(',')
+  .map((s) => s.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+if (process.env.NODE_ENV !== 'production') {
+  if (!allowedOrigins.includes('http://localhost:3000')) {
+    allowedOrigins.push('http://localhost:3000');
+  }
+  if (!allowedOrigins.includes('http://localhost:3001')) {
+    allowedOrigins.push('http://localhost:3001');
+  }
+}
+console.log('Allowed CORS origins:', allowedOrigins);
+
+// Always set CORS headers for all responses
+app.use((req, res, next) => {
+  const origin = req.header('origin');
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  next();
+});
+
+// Respond to all OPTIONS requests with CORS headers
+app.options('*', (req, res) => {
+  const origin = req.header('origin');
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  res.sendStatus(204);
+});
+
+// Add this handler after the above middleware:
+app.options('*', (req, res) => {
+  res.sendStatus(204);
+});
+
 // Set trust proxy early (important behind Vercel / proxies)
 app.set('trust proxy', 1)
 
@@ -81,60 +127,7 @@ initializeDatabase()
 // Security & cors
 app.use(helmet())
 
-// Build allowed origins
-const rawOrigins = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || ''
-const allowedOrigins = rawOrigins
-  .split(',')
-  .map((s) => s.trim().replace(/\/$/, ''))
-  .filter(Boolean)
-
-if (
-  !allowedOrigins.includes('http://localhost:3000') &&
-  process.env.NODE_ENV !== 'production'
-) {
-  allowedOrigins.push('http://localhost:3000')
-}
-console.log('Allowed CORS origins:', allowedOrigins)
-
-const corsOptionsDelegate = (req, callback) => {
-  const origin = req.header('origin')
-  if (!origin) {
-    return callback(null, { origin: true, credentials: true })
-  }
-  if (allowedOrigins.includes(origin)) {
-    return callback(null, {
-      origin,
-      credentials: true,
-      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'Accept',
-        'X-Requested-With',
-      ],
-    })
-  }
-  return callback(null, { origin: false })
-}
-
-app.use(cors(corsOptionsDelegate))
-app.options('*', (req, res) => {
-  // simple preflight responder
-  res.header('Access-Control-Allow-Credentials', 'true')
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Content-Type,Authorization,Accept,X-Requested-With'
-  )
-  res.header(
-    'Access-Control-Allow-Methods',
-    'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
-  )
-  const origin = req.header('origin') || ''
-  if (allowedOrigins.includes(origin) || origin === '') {
-    res.setHeader('Access-Control-Allow-Origin', origin || '')
-  }
-  return res.sendStatus(204)
-})
+// ...existing code...
 
 // Rate limiter
 const limiter = rateLimit({
