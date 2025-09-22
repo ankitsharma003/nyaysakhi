@@ -131,22 +131,22 @@ async function connectDB() {
 const gracefulShutdown = async () => {
   try {
     console.log('🔄 Gracefully closing MongoDB connection...')
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.close(false)
+        if (mongoose.connection.readyState === 1) {
+          await mongoose.connection.close(false)
       console.log('🔌 MongoDB connection closed gracefully.')
-    }
-  } catch (e) {
+        }
+      } catch (e) {
     console.error('❌ Error closing MongoDB connection:', e)
-  } finally {
-    // Only exit in non-serverless local environments if desired
-    if (
-      process.env.NODE_ENV !== 'production' &&
-      process.env.FORCE_EXIT_ON_DB_CLOSE === 'true'
-    ) {
-      process.exit(0)
+      } finally {
+        // Only exit in non-serverless local environments if desired
+        if (
+          process.env.NODE_ENV !== 'production' &&
+          process.env.FORCE_EXIT_ON_DB_CLOSE === 'true'
+        ) {
+          process.exit(0)
+        }
+      }
     }
-  }
-}
 
 // Set up graceful shutdown handlers
 if (typeof process !== 'undefined') {

@@ -24,7 +24,7 @@ const protect = async (req, res, next) => {
     try {
       // Verify JWT token first
       const decoded = jwt.verify(token, process.env.JWT_SECRET)
-      
+
       // Check if session exists and is active
       const session = await Session.findOne({
         token,
@@ -162,10 +162,10 @@ const optionalAuth = async (req, res, next) => {
         if (session && session.user && session.user.isActive) {
           // Verify the session user matches the JWT user
           if (session.user._id.toString() === decoded.userId) {
-            session.lastActivity = new Date()
-            await session.save()
-            req.user = session.user
-            req.session = session
+          session.lastActivity = new Date()
+          await session.save()
+          req.user = session.user
+          req.session = session
           }
         }
       } catch (error) {

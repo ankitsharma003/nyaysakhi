@@ -21,21 +21,21 @@ A robust Node.js backend API for the NyayMitra legal assistance platform, built 
 ## Installation
 
 1. **Clone the repository**
-   ```bash
+```bash
    git clone <repository-url>
    cd nyaymitra/backend
-   ```
+```
 
 2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
 3. **Environment Configuration**
-   ```bash
-   cp env.example .env
-   ```
-   
+```bash
+cp env.example .env
+```
+
    Update the `.env` file with your configuration:
    ```env
    # Database Configuration
@@ -46,12 +46,12 @@ A robust Node.js backend API for the NyayMitra legal assistance platform, built 
    JWT_REFRESH_SECRET=your-super-secret-refresh-key-here
    
    # Server Configuration
-   PORT=5000
-   NODE_ENV=development
+PORT=5000
+NODE_ENV=development
    
    # Frontend URL
-   FRONTEND_URL=http://localhost:3000
-   ```
+FRONTEND_URL=http://localhost:3000
+```
 
 4. **Start MongoDB**
    - Local: Start your MongoDB service

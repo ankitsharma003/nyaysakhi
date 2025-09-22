@@ -158,8 +158,8 @@ app.get('/api/health', (req, res) => {
   const healthResponse = {
     status: dbUp ? 'OK' : 'DEGRADED',
     dbConnected: dbUp,
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0',
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || '1.0.0',
     database: {
       status: dbStatus.readyState,
       host: dbStatus.host,

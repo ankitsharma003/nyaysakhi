@@ -95,12 +95,12 @@ router.post('/upload', protect, upload.single('document'), async (req, res) => {
       user: req.user._id,
       fileName: req.file.filename,
       originalName: fileName,
-      fileSize,
+        fileSize,
       fileType: fileType.split('/')[1], // Extract file extension
-      filePath,
+        filePath,
       extractedData,
-      confidence,
-      language,
+        confidence,
+        language,
       status: 'completed',
     })
 
@@ -130,7 +130,7 @@ router.get('/', protect, async (req, res) => {
     const skip = (page - 1) * limit
 
     const query = { user: req.user._id }
-    
+
     if (status) {
       query.status = status
     }
