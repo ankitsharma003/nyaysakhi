@@ -200,10 +200,10 @@ export default function DashboardPage() {
               <div className="flex items-center space-x-2">
                 <Scale className="h-8 w-8 text-indigo-600" />
                 <h1 className="text-2xl font-bold text-gray-900">
-                  <span className="hindi-text">न्याय मित्र</span>
+                  <span className="hindi-text">न्याय सखी</span>
                   <span className="ml-2 text-indigo-600">Dashboard</span>
                 </h1>
-              </div>
+              </div>  
             </div>
             <div className="flex items-center space-x-4">
               <button
