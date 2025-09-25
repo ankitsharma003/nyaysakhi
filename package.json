@@ -16,9 +16,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "prepare": "husky install",
-    "deploy:vercel": "node deploy-vercel.js",
-    "deploy:check": "vercel --prod"
+    "prepare": "husky install"
   },
   "keywords": [
     "legal-tech",
