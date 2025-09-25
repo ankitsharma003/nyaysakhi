@@ -19,7 +19,7 @@ const hindiFontFallback = {
 }
 
 export const metadata: Metadata = {
-  title: 'Nyāy Mitra - AI-Powered Legal Assistant',
+  title: 'Nyāy Sakhi - AI-Powered Legal Assistant',
   description:
     'Upload your legal documents, get instant analysis, and connect with verified lawyers in your area.',
   keywords: [
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     'India',
     'constitution',
   ],
-  authors: [{ name: 'Nyāy Mitra Team' }],
+  authors: [{ name: 'Nyāy Sakhi Team' }],
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',

@@ -228,7 +228,7 @@ export default function AppPage() {
                 <div className="flex items-center space-x-2">
                   <Scale className="h-8 w-8 text-indigo-600" />
                   <h1 className="text-2xl font-bold text-gray-900">
-                    Nyāy Mitra
+                    Nyāy Sakhi
                   </h1>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -361,8 +361,8 @@ export default function AppPage() {
                 <div className="flex items-center space-x-2">
                   <Scale className="h-8 w-8 text-indigo-600" />
                   <h1 className="text-2xl font-bold text-gray-900">
-                    <span className="hindi-text">न्याय मित्र</span>
-                    <span className="ml-2 text-indigo-600">Nyāy Mitra</span>
+                    <span className="hindi-text">न्याय सखी</span>
+                    <span className="ml-2 text-indigo-600">Nyāy Sakhi</span>
                   </h1>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -404,8 +404,8 @@ export default function AppPage() {
               <div className="flex items-center space-x-2">
                 <Scale className="h-8 w-8 text-indigo-600" />
                 <h1 className="text-2xl font-bold text-gray-900">
-                  <span className="hindi-text">न्याय मित्र</span>
-                  <span className="ml-2 text-indigo-600">Nyāy Mitra</span>
+                  <span className="hindi-text">न्याय सखी</span>
+                  <span className="ml-2 text-indigo-600">Nyāy Sakhi</span>
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
@@ -477,7 +477,7 @@ export default function AppPage() {
             <div className="relative">
               <h1 className="mb-6 text-5xl font-bold text-gray-900 md:text-6xl">
                 <span className="hindi-text mb-2 block text-4xl md:text-5xl">
-                  न्याय मित्र
+                  न्याय सखी
                 </span>
                 <span className="text-indigo-600">
                   {language === 'hi'
@@ -579,8 +579,8 @@ export default function AppPage() {
             </h2>
             <p className="mb-8 text-xl text-indigo-100">
               {language === 'hi'
-                ? 'अपनी कानूनी यात्रा शुरू करें और न्याय मित्र के साथ सशक्त बनें'
-                : 'Start your legal journey and empower yourself with Nyāy Mitra'}
+                ? 'अपनी कानूनी यात्रा शुरू करें और न्याय सखी के साथ सशक्त बनें'
+                : 'Start your legal journey and empower yourself with Nyāy Sakhi'}
             </p>
             <button
               onClick={() => setCurrentStep('upload')}
@@ -599,7 +599,7 @@ export default function AppPage() {
               <div>
                 <div className="mb-4 flex items-center space-x-2">
                   <Scale className="h-6 w-6" />
-                  <span className="text-xl font-bold">न्याय मित्र</span>
+                  <span className="text-xl font-bold">न्याय सखी</span>
                 </div>
                 <p className="text-gray-400">
                   {language === 'hi'
@@ -650,7 +650,7 @@ export default function AppPage() {
             </div>
             <div className="mt-8 border-t border-gray-800 pt-8 text-center text-gray-400">
               <p>
-                &copy; 2025 न्याय मित्र (Nyāy Mitra).{' '}
+                &copy; 2025 न्याय सखी (Nyāy Sakhi).{' '}
                 {language === 'hi'
                   ? 'सभी अधिकार सुरक्षित।'
                   : 'All rights reserved.'}

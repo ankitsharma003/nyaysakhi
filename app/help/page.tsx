@@ -160,7 +160,7 @@ export default function HelpPage() {
       title: language === 'hi' ? 'ईमेल सहायता' : 'Email Support',
       description:
         language === 'hi' ? 'ईमेल के माध्यम से सहायता' : 'Support via Email',
-      contact: 'support@nyaymitra.com',
+      contact: 'support@nyaysakhi.com',
       available: language === 'hi' ? '24 घंटे' : '24 Hours',
     },
     {

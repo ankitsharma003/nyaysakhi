@@ -192,8 +192,8 @@ export default function SignupPage() {
             <Link href="/" className="flex items-center space-x-2">
               <Scale className="h-8 w-8 text-indigo-600" />
               <h1 className="text-2xl font-bold text-gray-900">
-                <span className="hindi-text">न्याय मित्र</span>
-                <span className="ml-2 text-indigo-600">Nyāy Mitra</span>
+                <span className="hindi-text">न्याय सखी</span>
+                <span className="ml-2 text-indigo-600">Nyāy Sakhi</span>
               </h1>
             </Link>
             <div className="flex items-center space-x-4">
@@ -225,8 +225,8 @@ export default function SignupPage() {
               </CardTitle>
               <p className="mt-2 text-gray-600">
                 {localLang === 'hi'
-                  ? 'न्याय मित्र के साथ अपनी कानूनी यात्रा शुरू करें'
-                  : 'Join Nyāy Mitra and start your legal journey'}
+                  ? 'न्याय सखी के साथ अपनी कानूनी यात्रा शुरू करें'
+                  : 'Join Nyāy Sakhi and start your legal journey'}
               </p>
             </CardHeader>
 
