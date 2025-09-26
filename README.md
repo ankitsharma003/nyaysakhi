@@ -1,4 +1,4 @@
-# न्याय मित्र (Nyāy Mitra) - AI Legal Assistant
+# न्याय सखी (Nyāy Sakhi) - AI Legal Assistant
 
 An AI-powered legal document analysis and lawyer matching platform designed to make legal assistance accessible to everyone in India.
 
@@ -41,7 +41,7 @@ An AI-powered legal document analysis and lawyer matching platform designed to m
 ## 📁 Project Structure
 
 ```
-nyaymitra/
+nyaysakhi/
 ├── app/                    # Next.js app directory
 │   ├── globals.css        # Global styles
 │   ├── layout.tsx         # Root layout
@@ -115,4 +115,4 @@ nyaymitra/
 - Next.js team for the amazing framework
 - Tailwind CSS for utility-first styling
 
-**न्याय मित्र** - Making legal assistance accessible to everyone! 🇮🇳
+**न्याय सखी** - Making legal assistance accessible to everyone! 🇮🇳
